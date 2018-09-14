@@ -1,4 +1,4 @@
-module StrucuralInheritence
+module StructuralInheritance
 
 #Stores prototype field definitions
 const fieldBacking = Dict{Type,Vector{Any}}()
@@ -76,10 +76,11 @@ macro proto(struct_)
     esc(quote
       $prototypeDefinition
       $D1_module = parentmodule($lightname)
-      $D1_fields = StrucralInheritence.sanitize($D1_module,$fields)
+      $D1_fields = StrucralInheritence.sanitize($D1_module,$(Meta.quot(fields)))
       $struct_ #TODO: rename struct and store fields
-  end) 
-else #TODO: inheritence case
+  end)
+
+  else #TODO: inheritence case
 
   end
 
