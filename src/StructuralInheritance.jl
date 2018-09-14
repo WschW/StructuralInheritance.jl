@@ -2,10 +2,9 @@ module StructuralInheritance
 
 #Stores prototype field definitions
 const fieldBacking = Dict{Type,Vector{Any}}()
-const constructorBacking = Dict{Type,Vector{Any}}()
 
+#prototype -> self
 #concrete -> prototype
-#prototype -> prototype
 const shadowMap = Dict{Type,Type}()
 
 
@@ -41,20 +40,36 @@ function extractfields(leaf)
   filtertofields(leaf.args[3])
 end
 
-function protoname(oldName::Symbol)
-  outName = Symbol("Proto",oldName)
-  (:($oldName <: $outName),outName,outName)
-end
+#TODO: fix handling for parametrics
+function newnames(structDefinition)
+  newStructName = deepcopy(extractname(structDefinition))
+  prototypeName = deepcopy(newStructName)
+  lightWeightPrototypeName = prototypeName
 
-function protoname(oldName::Expr)
-  outName = deepcopy(oldName)
-  if typeof(outName.args[2]) <: Symbol
-    outName.args[2] = Symbol("Proto",outName.args[2])
-    (outName,outName.args[2],outName.args[2])
+  if typeof(prototypeName) <: Symbol
+      prototypeName = Symbol("Proto",prototypeName)
+      lightWeightPrototypeName = prototypeName
   else
-    outName.args[2].args[1] = Symbol("Proto",outName.args[2].args[1])
-    (outName,outName.args[2],outName.args[2].args[1])
+      temp = prototypeName
+      while (temp.head == :(<:) || temp.head == :.) && typeof(temp.args[2]) <: Expr
+          temp = temp.args[2]
+      end
+      if temp.head == :curly
+        newStructName = temp.args[1]
+        temp.args[1] = Symbol("Proto",temp.args[1])
+        lightWeightPrototypeName = temp.args[1]
+      else
+        newStructName = temp.args[2]
+        temp.args[2] = Symbol("Proto",temp.args[2])
+        lightWeightPrototypeName = temp.args[2]
+      end
   end
+  newStructLightName = newStructName
+  while typeof(newStructLightName) <: Expr
+      newStructLightName.args[1]
+  end
+  newStructName = :($newStructName <: $lightWeightPrototypeName)
+  (newStructName,prototypeName,newStructLightName,lightWeightPrototypeName)
 end
 
 
@@ -65,19 +80,33 @@ function sanitize(module_,fields)
     fields #TODO
 end
 
+
+"""
+returns a renamed struct
+"""
+function rename(struct_,name)
+    newStruct = deepcopy(struct_)
+    newStruct.args[2] = name
+    newStruct
+end
+
 macro proto(struct_)
-  renamed,name,lightname = protoname(struct_)
+  dump(struct_)
+  newName,name,newStructLightName,lightname = newnames(struct_)
   fields = extractfields(struct_)
   D1_struct = gensym()
   D1_module = gensym()
   D1_fields = gensym()
   prototypeDefinition = abstracttype(name) #Can't be evaluated until all checks are passed and we are in the calling module
-  if typeof(name) <: Symbol #original definition does not inherit
+  structDefinition = rename(struct_,newName)
+  if typeof(name) <: Symbol || name.head == :curly #original definition does not inherit
     esc(quote
       $prototypeDefinition
       $D1_module = parentmodule($lightname)
-      $D1_fields = StrucralInheritence.sanitize($D1_module,$(Meta.quot(fields)))
-      $struct_ #TODO: rename struct and store fields
+      $D1_fields = StructuralInheritance.sanitize($D1_module,$(Meta.quot(fields)))
+      $structDefinition
+      StructuralInheritance.fieldBacking[$lightname] = $D1_fields
+      StructuralInheritance.shadowMap[$newStructLightName] = $lightname
   end)
 
   else #TODO: inheritence case
