@@ -8,6 +8,10 @@ const constructorBacking = Dict{Type,Vector{Any}}()
 #prototype -> prototype
 const shadowMap = Dict{Type,Type}()
 
+
+"""
+Creates an abstract type with the given name
+"""
 function abstracttype(name)
   basicForm = :(abstract type Replace end)
   dump(basicForm)
@@ -15,18 +19,24 @@ function abstracttype(name)
   basicForm
 end
 
+
+"""
+returns an array with only the field definitions
+"""
 function filtertofields(_quote)
   filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),_quote.args)
 end
 
-function filtertoconstructors(_quote)
-  filter(x -> (typeof(x) == Expr && x.head == :function),_quote.args)
-end
-
+"""
+gets the name of a struct definition
+"""
 function extractname(leaf)
   leaf.args[2]
 end
 
+"""
+extracts the fields from a struct definition
+"""
 function extractfields(leaf)
   filtertofields(leaf.args[3])
 end
@@ -47,6 +57,7 @@ function protoname(oldName::Expr)
   end
 end
 
+
 """
 annotates module information to unanotated typed fields
 """
@@ -66,9 +77,9 @@ macro proto(struct_)
       $prototypeDefinition
       $D1_module = parentmodule($lightname)
       $D1_fields = StrucralInheritence.sanitize($D1_module,$fields)
-      $struct_
-    end)
-  else
+      $struct_ #TODO: rename struct and store fields
+  end) 
+else #TODO: inheritence case
 
   end
 
@@ -76,6 +87,7 @@ end
 
 """
 Calls the provided constructor of the supertype the strucure is inherited from.
+and sets local fields based on that.
 """
 macro super(constructor,self::Symbol = gensym())
   val = gensym()
