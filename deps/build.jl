@@ -1,1 +1,1 @@
-include("../src/StrucralInheritence.jl")
+include("../src/StructuralInheritance.jl")
