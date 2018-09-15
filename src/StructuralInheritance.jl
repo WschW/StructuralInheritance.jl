@@ -1,7 +1,7 @@
 module StructuralInheritance
 
 #Stores prototype field definitions
-const fieldBacking = Dict{Type,Vector{Any}}()
+const fieldBacking = Dict{Union{Type,Missing},Vector{Any}}()
 
 #prototype -> self
 #concrete -> prototype
@@ -13,7 +13,6 @@ Creates an abstract type with the given name
 """
 function abstracttype(name)
   basicForm = :(abstract type Replace end)
-  dump(basicForm)
   basicForm.args[1] = name
   basicForm
 end
@@ -78,7 +77,7 @@ function fieldsymbols(fields)
         if typeof(x) <: Symbol
             x
         else
-            x.args[2]::Symbol
+            x.args[1]::Symbol
         end
     end
     symbol.(fields)
@@ -88,7 +87,9 @@ end
 throws an error is the fields contain overlapping symbols
 """
 function assertcollisionfree(x,y)
-    assert(isempty(intersect(Set(fieldsymbols(x)),Set(fieldsymbols(y)))))
+    if !isempty(intersect(Set(fieldsymbols(x)),Set(fieldsymbols(y))))
+        throw("Error: Field defined in multiple locations")
+    end
 end
 
 """
@@ -96,7 +97,7 @@ returns a copy with replacement fields
 """
 function replacefields(struct_,fields)
     out = deepcopy(struct_)
-    out.args[3] = fields
+    out.args[3].args = fields
     out
 end
 
@@ -118,7 +119,7 @@ function rename(struct_,name)
 end
 
 macro proto(struct_)
-  dump(struct_)
+  #dump(struct_)
   newName,name,newStructLightName,lightname = newnames(struct_)
   fields = extractfields(struct_)
   D1_struct = gensym()
@@ -131,7 +132,6 @@ macro proto(struct_)
       $prototypeDefinition
       $D1_module = parentmodule($lightname)
       $D1_fields = StructuralInheritance.sanitize($D1_module,$(Meta.quot(fields)))
-      dump($(Meta.quot(structDefinition)))
       $structDefinition
       StructuralInheritance.fieldBacking[$lightname] = $D1_fields
       StructuralInheritance.shadowMap[$newStructLightName] = $lightname
@@ -141,8 +141,10 @@ macro proto(struct_)
   else #inheritence case
     D1_oldFields = gensym()
     D1_struct = gensym()
+    D1_parentType = gensym()
     esc(quote
-      $D1_oldFields = StructuralInheritance.fieldBacking[StructuralInheritance.shadowMap[$name.args[2]]]
+      $D1_parentType = get(StructuralInheritance.shadowMap,$(name.args[2]),missing)
+      $D1_oldFields = get(StructuralInheritance.fieldBacking,$D1_parentType ,[])
       $D1_fields = $(Meta.quot(fields))
       StructuralInheritance.assertcollisionfree($D1_fields,$D1_oldFields)
       $prototypeDefinition
@@ -150,9 +152,10 @@ macro proto(struct_)
       $D1_fields = StructuralInheritance.sanitize($D1_module,$D1_fields)
       $D1_fields = vcat($D1_fields,$D1_oldFields)
 
-      $D1_struct = rename($(Meta.quot(structDefinition)),$(Meta.quot(newName)))
-      $D1_struct = replacefields($D1_struct,$D1_fields)
+      $D1_struct = StructuralInheritance.rename($(Meta.quot(structDefinition)),$(Meta.quot(newName)))
+      $D1_struct = StructuralInheritance.replacefields($D1_struct,$D1_fields)
 
+      dump($D1_struct); print($D1_struct)
       eval($D1_struct)
 
       StructuralInheritance.fieldBacking[$lightname] = $D1_fields
