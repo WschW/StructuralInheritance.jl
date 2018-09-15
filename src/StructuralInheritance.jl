@@ -73,6 +73,33 @@ function newnames(structDefinition)
 end
 
 
+function fieldsymbols(fields)
+    function symbol(x)
+        if typeof(x) <: Symbol
+            x
+        else
+            x.args[2]::Symbol
+        end
+    end
+    symbol.(fields)
+end
+
+"""
+throws an error is the fields contain overlapping symbols
+"""
+function assertcollisionfree(x,y)
+    assert(isempty(intersect(Set(fieldsymbols(x)),Set(fieldsymbols(y)))))
+end
+
+"""
+returns a copy with replacement fields
+"""
+function replacefields(struct_,fields)
+    out = deepcopy(struct_)
+    out.args[3] = fields
+    out
+end
+
 """
 annotates module information to unanotated typed fields
 """
@@ -104,13 +131,35 @@ macro proto(struct_)
       $prototypeDefinition
       $D1_module = parentmodule($lightname)
       $D1_fields = StructuralInheritance.sanitize($D1_module,$(Meta.quot(fields)))
+      dump($(Meta.quot(structDefinition)))
       $structDefinition
       StructuralInheritance.fieldBacking[$lightname] = $D1_fields
       StructuralInheritance.shadowMap[$newStructLightName] = $lightname
+      StructuralInheritance.shadowMap[$lightname] = $lightname
   end)
 
-  else #TODO: inheritence case
+  else #inheritence case
+    D1_oldFields = gensym()
+    D1_struct = gensym()
+    esc(quote
+      $D1_oldFields = StructuralInheritance.fieldBacking[StructuralInheritance.shadowMap[$name.args[2]]]
+      $D1_fields = $(Meta.quot(fields))
+      StructuralInheritance.assertcollisionfree($D1_fields,$D1_oldFields)
+      $prototypeDefinition
+      $D1_module = parentmodule($lightname)
+      $D1_fields = StructuralInheritance.sanitize($D1_module,$D1_fields)
+      $D1_fields = vcat($D1_fields,$D1_oldFields)
 
+      $D1_struct = rename($(Meta.quot(structDefinition)),$(Meta.quot(newName)))
+      $D1_struct = replacefields($D1_struct,$D1_fields)
+
+      eval($D1_struct)
+
+      StructuralInheritance.fieldBacking[$lightname] = $D1_fields
+      StructuralInheritance.shadowMap[$newStructLightName] = $lightname
+      StructuralInheritance.shadowMap[$lightname] = $lightname
+
+    end)
   end
 
 end
