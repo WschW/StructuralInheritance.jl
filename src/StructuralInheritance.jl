@@ -1,5 +1,7 @@
 module StructuralInheritance
 
+export @protostruct, @superconstructor
+
 #Stores prototype field definitions
 const fieldBacking = Dict{Union{Type,Missing},Vector{Any}}()
 
@@ -141,7 +143,7 @@ function rename(struct_,name)
     newStruct
 end
 
-macro proto(struct_)
+macro protostruct(struct_)
   #dump(struct_)
   newName,name,newStructLightName,lightname = newnames(struct_,__module__)
   fields = extractfields(struct_)
@@ -178,7 +180,7 @@ macro proto(struct_)
       $D1_struct = StructuralInheritance.rename($(Meta.quot(structDefinition)),$(Meta.quot(newName)))
       $D1_struct = StructuralInheritance.replacefields($D1_struct,$D1_fields)
 
-      dump($D1_struct); print($D1_struct)
+      #dump($D1_struct); print($D1_struct)
       eval($D1_struct)
 
       StructuralInheritance.fieldBacking[$lightname] = $D1_fields
@@ -194,7 +196,7 @@ end
 Calls the provided constructor of the supertype the strucure is inherited from.
 and sets local fields based on that.
 """
-macro super(constructor,self::Symbol = gensym())
+macro superconstructor(constructor,self::Symbol = gensym())
   val = gensym()
   fields = gensym()
   field = gensym()
