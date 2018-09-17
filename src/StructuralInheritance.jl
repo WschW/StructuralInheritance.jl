@@ -130,7 +130,28 @@ end
 annotates module information to unanotated typed fields
 """
 function sanitize(module_,fields)
-    fields #TODO
+  fields = deepcopy(fields)
+  modulePath = fullname(module_)
+  function addpath(x)
+    annotationPath = push!(Any[modulePath...],x)
+    while length(annotationPath) > 1
+      first = pop!(annotationPath)
+      second = pop!(annotationPath)
+      push!(annotationPath,:($(second).$(first)))
+    end
+    annotationPath[1]
+  end
+
+  function addpathif(x)
+    if typeof(x) <: Symbol
+      x
+    else
+      x.args[2] = addpath(x.args[2])
+      x
+    end
+  end
+
+  addpathif.(fields)
 end
 
 
