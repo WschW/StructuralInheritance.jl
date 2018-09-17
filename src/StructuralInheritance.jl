@@ -41,7 +41,7 @@ function extractfields(leaf)
   filtertofields(leaf.args[3])
 end
 
-#TODO: fix handling for parametrics
+
 function newnames(structDefinition,module_)
   """
   handle inheritence conversions
@@ -56,7 +56,7 @@ function newnames(structDefinition,module_)
     elseif haskey(shadowMap,val)
       :($(shadowMap[val]))
     else
-      throw("must inherit from concrete types defined by @proto")
+      throw("inheritence from concrete types is limited to those defined by @protostruct, $val not found")
     end
   end
 
@@ -70,7 +70,7 @@ function newnames(structDefinition,module_)
   if nameNode.head == :curly
     protoName = deepcopy(nameNode)
     protoName.args[1] = Symbol("Proto",nameNode.args[1])
-    return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+    return (:( $(nameNode) <: $(protoName)),
             protoName,
             nameNode,
             protoName)
@@ -81,16 +81,23 @@ function newnames(structDefinition,module_)
     structHead = deepcopy(nameNode.args[1])
 
     if typeof(nameNode.args[1]) <: Expr && nameNode.args[1].head == :curly
-      throw("Parametric Inheritence not yet availible")#TODO: handle parametric inheritence
-      elseif typeof(nameNode.args[1]) <: Symbol
         protoName = deepcopy(nameNode)
-        protoName.args[1] = Symbol("Proto",nameNode.args[1])
+        protoName.args[1].args[1] = Symbol("Proto",nameNode.args[1].args[1])
         protoName.args[2] = inheritFrom
         return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
                 protoName,
                 nameNode.args[1],
                 protoName.args[1])
-      end
+
+    elseif typeof(nameNode.args[1]) <: Symbol
+      protoName = deepcopy(nameNode)
+      protoName.args[1] = Symbol("Proto",nameNode.args[1])
+      protoName.args[2] = inheritFrom
+      return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+              protoName,
+              nameNode.args[1],
+              protoName.args[1])
+    end
   end
 
   throw("structure of strucure name not identified")
@@ -164,24 +171,47 @@ function rename(struct_,name)
     newStruct
 end
 
+"""
+strips parameterization off of a name that does
+not include inheritence information
+"""
+function deparametrize_lightName(name)
+    if typeof(name) <: Expr && name.head == :curly
+        name.args[1]
+    else
+        name
+    end
+end
+
+function register(module_,newStructName,prototypeName,fields)
+    nSName =  deparametrize_lightName(newStructName)
+    pName = deparametrize_lightName(prototypeName)
+
+    concrete = module_.eval(nSName)
+    proto = module_.eval(pName)
+    StructuralInheritance.fieldBacking[proto] = fields
+    StructuralInheritance.shadowMap[concrete] = proto
+    StructuralInheritance.shadowMap[proto] = proto
+end
+
+
 macro protostruct(struct_)
   #dump(struct_)
   newName,name,newStructLightName,lightname = newnames(struct_,__module__)
   fields = extractfields(struct_)
   D1_struct = gensym()
-  D1_module = gensym()
   D1_fields = gensym()
-  prototypeDefinition = abstracttype(name) #Can't be evaluated until all checks are passed and we are in the calling module
+  sanitizedFields = sanitize(__module__,fields)
+  prototypeDefinition = abstracttype(name)
   structDefinition = rename(struct_,newName)
-  if typeof(name) <: Symbol || name.head == :curly #original definition does not inherit
+  if typeof(name) <: Symbol || name.head == :curly
     esc(quote
       $prototypeDefinition
-      $D1_module = parentmodule($lightname)
-      $D1_fields = StructuralInheritance.sanitize($D1_module,$(Meta.quot(fields)))
       $structDefinition
-      StructuralInheritance.fieldBacking[$lightname] = $D1_fields
-      StructuralInheritance.shadowMap[$newStructLightName] = $lightname
-      StructuralInheritance.shadowMap[$lightname] = $lightname
+      StructuralInheritance.register($__module__,
+                                     $(Meta.quot(newStructLightName)),
+                                     $(Meta.quot(lightname)),
+                                     $(Meta.quot(sanitizedFields)))
   end)
 
   else #inheritence case
@@ -194,8 +224,7 @@ macro protostruct(struct_)
       $D1_fields = $(Meta.quot(fields))
       StructuralInheritance.assertcollisionfree($D1_fields,$D1_oldFields)
       $prototypeDefinition
-      $D1_module = parentmodule($lightname)
-      $D1_fields = StructuralInheritance.sanitize($D1_module,$D1_fields)
+      $D1_fields = StructuralInheritance.sanitize($__module__,$D1_fields)
       $D1_fields = vcat($D1_fields,$D1_oldFields)
 
       $D1_struct = StructuralInheritance.rename($(Meta.quot(structDefinition)),$(Meta.quot(newName)))
@@ -204,15 +233,18 @@ macro protostruct(struct_)
       #dump($D1_struct); print($D1_struct)
       eval($D1_struct)
 
-      StructuralInheritance.fieldBacking[$lightname] = $D1_fields
-      StructuralInheritance.shadowMap[$newStructLightName] = $lightname
-      StructuralInheritance.shadowMap[$lightname] = $lightname
+      StructuralInheritance.register($__module__,
+                                     $(Meta.quot(newStructLightName)),
+                                     $(Meta.quot(lightname)),
+                                     $(Meta.quot(sanitizedFields)))
 
     end)
   end
 
 end
 
+
+#TODO: Rewrite for more efficient code.
 """
 Calls the provided constructor of the supertype the strucure is inherited from.
 and sets local fields based on that.
