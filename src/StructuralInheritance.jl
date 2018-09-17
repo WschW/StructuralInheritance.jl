@@ -41,34 +41,41 @@ end
 
 #TODO: fix handling for parametrics
 function newnames(structDefinition)
-  newStructName = deepcopy(extractname(structDefinition))
-  prototypeName = deepcopy(newStructName)
-  lightWeightPrototypeName = prototypeName
+  rectify(x) = x #TODO: handle direct concrete arguments
 
-  if typeof(prototypeName) <: Symbol
-      prototypeName = Symbol("Proto",prototypeName)
-      lightWeightPrototypeName = prototypeName
-  else
-      temp = prototypeName
-      while (temp.head == :(<:) || temp.head == :.) && typeof(temp.args[2]) <: Expr
-          temp = temp.args[2]
-      end
-      if temp.head == :curly
-        newStructName = temp.args[1]
-        temp.args[1] = Symbol("Proto",temp.args[1])
-        lightWeightPrototypeName = temp.args[1]
-      else
-        newStructName = temp.args[2]
-        temp.args[2] = Symbol("Proto",temp.args[2])
-        lightWeightPrototypeName = temp.args[2]
+  nameNode = structDefinition.args[2]
+
+  if typeof(nameNode) <: Symbol
+    protoName = Symbol("Proto",nameNode)
+    return (:($nameNode <: $protoName),protoName,nameNode,protoName)
+  end
+
+  if nameNode.head == :curly
+    protoName = deepcopy(nameNode)
+    protoName.args[1] = Symbol("Proto",nameNode.args[1])
+    return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+            protoName,
+            nameNode,
+            protoName)
+  end
+
+  if nameNode.head == :<:
+    inheritFrom = rectify(deepcopy(nameNode.args[2]))
+    structHead = deepcopy(nameNode.args[1])
+
+    if typeof(nameNode.args[1]) <: Expr && nameNode.args[1].head == :curly
+      throw("Parametric Inheritence not yet availible")#TODO: handle parametric inheritence
+      elseif typeof(nameNode.args[1]) <: Symbol
+        protoName = deepcopy(nameNode)
+        protoName.args[1] = Symbol("Proto",nameNode.args[1])
+        return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+                protoName,
+                nameNode.args[1],
+                protoName.args[1])
       end
   end
-  newStructLightName = newStructName
-  while typeof(newStructLightName) <: Expr
-      newStructLightName.args[1]
-  end
-  newStructName = :($newStructName <: $lightWeightPrototypeName)
-  (newStructName,prototypeName,newStructLightName,lightWeightPrototypeName)
+
+  throw("structure of strucure name not identified")
 end
 
 
@@ -88,7 +95,7 @@ throws an error is the fields contain overlapping symbols
 """
 function assertcollisionfree(x,y)
     if !isempty(intersect(Set(fieldsymbols(x)),Set(fieldsymbols(y))))
-        throw("Error: Field defined in multiple locations")
+        throw("Field defined in multiple locations")
     end
 end
 
