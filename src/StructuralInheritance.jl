@@ -40,8 +40,23 @@ function extractfields(leaf)
 end
 
 #TODO: fix handling for parametrics
-function newnames(structDefinition)
-  rectify(x) = x #TODO: handle direct concrete arguments
+function newnames(structDefinition,module_)
+  """
+  handle inheritence conversions
+  """
+  function rectify(x)
+    val = module_.eval(x)
+    if !(typeof(val) <: Type)
+      throw("must inherit from a type")
+    end
+    if isabstracttype(val)
+      x
+    elseif haskey(shadowMap,val)
+      :($(shadowMap[val]))
+    else
+      throw("must inherit from concrete types defined by @proto")
+    end
+  end
 
   nameNode = structDefinition.args[2]
 
@@ -68,6 +83,7 @@ function newnames(structDefinition)
       elseif typeof(nameNode.args[1]) <: Symbol
         protoName = deepcopy(nameNode)
         protoName.args[1] = Symbol("Proto",nameNode.args[1])
+        protoName.args[2] = inheritFrom
         return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
                 protoName,
                 nameNode.args[1],
@@ -127,7 +143,7 @@ end
 
 macro proto(struct_)
   #dump(struct_)
-  newName,name,newStructLightName,lightname = newnames(struct_)
+  newName,name,newStructLightName,lightname = newnames(struct_,__module__)
   fields = extractfields(struct_)
   D1_struct = gensym()
   D1_module = gensym()
