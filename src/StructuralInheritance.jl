@@ -1,6 +1,6 @@
 module StructuralInheritance
 
-export @protostruct, @superconstructor
+export @protostruct
 
 #Stores prototype field definitions
 const fieldBacking = Dict{Union{Type,Missing},Vector{Any}}()
@@ -241,24 +241,5 @@ macro protostruct(struct_)
   end
 end
 
-
-#TODO: Rewrite for more efficient code.
-"""
-Calls the provided constructor of the supertype the strucure is inherited from.
-and sets local fields based on that.
-"""
-macro superconstructor(constructor,self::Symbol = gensym())
-  val = gensym()
-  fields = gensym()
-  field = gensym()
-  esc(quote
-    $val = constructor
-    $fields = fieldnames(typeof($val))
-    $self = new()
-    for $field = $fields
-        setfield!($self,$field,getfield($val,$field))
-    end
-  end)
-end
 
 end
