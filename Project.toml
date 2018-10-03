@@ -5,3 +5,6 @@ version = "0.0.1"
 license = "MIT"
 
 [deps]
+
+[targets]
+test = ["Test"]
