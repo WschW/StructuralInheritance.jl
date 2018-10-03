@@ -1,8 +1,10 @@
 using Test
 include("../deps/build.jl")
 
+#NOTE: @testset will not work for testing this.
 
-@testset "Direct Inheritence" begin
+## TEST BASIC STRUCTURAL INHERITENCE ##
+
   StructuralInheritance.@protostruct struct A
      FA::Int
      FB
@@ -17,27 +19,36 @@ include("../deps/build.jl")
   @test fieldtype.(B,[1,2,3,4]) == [Int,Any,Float32,Any]
   @test B <: ProtoB && B <: ProtoA
 
+# exception thrown when inherited class uses same names
   @test_throws Any StructuralInheritance.@protostruct struct C <: A
-      A::Int
+      FA::Int
   end
 
   @test_throws Any StructuralInheritance.@protostruct struct D <: A
+      FB
+  end
+
+  # exception thrown trying to inherit from a concrete class not defined
+  # by @protostruct
+  @test_throws Any StructuralInheritance.@protostruct struct E <: Int
       B
   end
 
   @test_throws Any StructuralInheritance.@protostruct struct E <: Int
       B
   end
-end
 
-@testset "Module Sanitization" begin
+  #inheritence from any abstract class
+  StructuralInheritance.@protostruct struct F <: Real
+      B
+  end
 
-end
+  @test F(3).B == 3
 
-@testset "Parametric Inheritence" begin
 
-end
+#TODO: TEST MODULE SANITIZATION FACILITY
 
-@testset "Parametric Modules" begin
 
-end
+#TODO: TEST parametric inheritence
+
+#TODO: TEST interactions between module sanitization and parametric inheritence
