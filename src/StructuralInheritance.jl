@@ -219,26 +219,19 @@ macro protostruct(struct_)
     else #inheritence case
       D1_oldFields = gensym()
       D1_struct = gensym()
-      D1_parentType = gensym()
+      parentType = get(shadowMap,__module__.eval(name.args[2]),missing)
+      oldFields = get(fieldBacking,parentType ,[])
+      assertcollisionfree(fields,oldFields)
+      fields = sanitize(__module__,fields)
+      fields = vcat(oldFields,fields)
+      structDefinition = replacefields(structDefinition,fields)
       return esc(quote
-        $D1_parentType = get(StructuralInheritance.shadowMap,$(name.args[2]),missing)
-        $D1_oldFields = get(StructuralInheritance.fieldBacking,$D1_parentType ,[])
-        $D1_fields = $(Meta.quot(fields))
-        StructuralInheritance.assertcollisionfree($D1_fields,$D1_oldFields)
         $prototypeDefinition
-        $D1_fields = StructuralInheritance.sanitize($__module__,$D1_fields)
-        $D1_fields = vcat($D1_oldFields,$D1_fields)
-
-        $D1_struct = StructuralInheritance.rename($(Meta.quot(structDefinition)),$(Meta.quot(newName)))
-        $D1_struct = StructuralInheritance.replacefields($D1_struct,$D1_fields)
-
-      #dump($D1_struct); print($D1_struct)
-        eval($D1_struct)
-
+        $structDefinition
         StructuralInheritance.register($__module__,
                                        $(Meta.quot(newStructLightName)),
                                        $(Meta.quot(lightname)),
-                                       $(Meta.quot(sanitizedFields)))
+                                       $(Meta.quot(fields)))
 
       end)
     end

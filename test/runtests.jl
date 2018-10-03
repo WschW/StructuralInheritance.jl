@@ -45,6 +45,15 @@ include("../deps/build.jl")
 
   @test F(3).B == 3
 
+  StructuralInheritance.@protostruct struct G <: B
+      FE::Float32
+      FF
+  end
+
+  @test fieldnames(G) == (:FA,:FB,:FC,:FD,:FE,:FF) #Test names of fields and order
+  @test fieldtype.(G,[1,2,3,4,5,6]) == [Int,Any,Float32,Any,Float32,Any]
+  @test G <: ProtoG && G <: ProtoB && G <: ProtoA
+
 
 #TODO: TEST MODULE SANITIZATION FACILITY
 
