@@ -141,10 +141,12 @@ function sanitize(module_,fields)
   modulePath = fullname(module_)
   function addpath(x)
     annotationPath = push!(Any[modulePath...],x)
+    reverse!(annotationPath)
+    annotationPath[1:(end-1)] .= QuoteNode.(annotationPath[1:(end-1)])
     while length(annotationPath) > 1
       first = pop!(annotationPath)
       second = pop!(annotationPath)
-      push!(annotationPath,:($(second).$(first)))
+      push!(annotationPath,Expr(:.,first,second))
     end
     annotationPath[1]
   end

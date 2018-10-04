@@ -1,8 +1,7 @@
 using Test
-include("../deps/build.jl")
 
 #NOTE: @testset will not work for testing this.
-
+using StructuralInheritance
 ## TEST BASIC STRUCTURAL INHERITENCE ##
 
   StructuralInheritance.@protostruct struct A
@@ -55,8 +54,23 @@ include("../deps/build.jl")
   @test G <: ProtoG && G <: ProtoB && G <: ProtoA
 
 
-#TODO: TEST MODULE SANITIZATION FACILITY
+#TEST MODULE SANITIZATION FACILITY
+module MA
+  using StructuralInheritance
+  @protostruct struct A
+    MA_FA::Int
+  end
+  @protostruct struct B <: A
+    A::A
+  end
+end
 
+@test_broken @protostruct struct H <: MA.B
+  C::A
+end
+
+@test_broken fieldnames(G) == (:MA_FA,:A,:C)
+@test_broken fieldtype.(G,[1,2,3]) == [Int,MA.A,A]
 
 #TODO: TEST parametric inheritence
 
