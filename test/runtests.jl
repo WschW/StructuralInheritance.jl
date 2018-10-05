@@ -65,12 +65,12 @@ module MA
   end
 end
 
-@test_broken @protostruct struct H <: MA.B
+@protostruct struct H <: MA.B
   C::A
 end
 
-@test_broken fieldnames(H) == (:MA_FA,:A,:C)
-@test_broken fieldtype.(H,[1,2,3]) == [Int,MA.A,A]
+@test fieldnames(H) == (:MA_FA,:A,:C)
+@test fieldtype.(H,[1,2,3]) == [Int,MA.A,A]
 
 #TODO: TEST parametric inheritence
 
