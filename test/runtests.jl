@@ -69,8 +69,8 @@ end
   C::A
 end
 
-@test_broken fieldnames(G) == (:MA_FA,:A,:C)
-@test_broken fieldtype.(G,[1,2,3]) == [Int,MA.A,A]
+@test_broken fieldnames(H) == (:MA_FA,:A,:C)
+@test_broken fieldtype.(H,[1,2,3]) == [Int,MA.A,A]
 
 #TODO: TEST parametric inheritence
 
