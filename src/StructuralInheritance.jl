@@ -42,7 +42,7 @@ function extractfields(leaf)
 end
 
 
-function newnames(structDefinition,module_)
+function newnames(structDefinition,module_,prefix)
   """
   handle inheritence conversions
   """
@@ -63,13 +63,13 @@ function newnames(structDefinition,module_)
   nameNode = structDefinition.args[2]
 
   if typeof(nameNode) <: Symbol
-    protoName = Symbol("Proto",nameNode)
+    protoName = Symbol(prefix,nameNode)
     return (:($nameNode <: $protoName),protoName,nameNode,protoName)
   end
 
   if nameNode.head == :curly
     protoName = deepcopy(nameNode)
-    protoName.args[1] = Symbol("Proto",nameNode.args[1])
+    protoName.args[1] = Symbol(prefix,nameNode.args[1])
     return (:( $(nameNode) <: $(protoName)),
             protoName,
             nameNode,
@@ -82,7 +82,7 @@ function newnames(structDefinition,module_)
 
     if typeof(nameNode.args[1]) <: Expr && nameNode.args[1].head == :curly
         protoName = deepcopy(nameNode)
-        protoName.args[1].args[1] = Symbol("Proto",nameNode.args[1].args[1])
+        protoName.args[1].args[1] = Symbol(prefix,nameNode.args[1].args[1])
         protoName.args[2] = inheritFrom
         return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
                 protoName,
@@ -91,7 +91,7 @@ function newnames(structDefinition,module_)
 
     elseif typeof(nameNode.args[1]) <: Symbol
       protoName = deepcopy(nameNode)
-      protoName.args[1] = Symbol("Proto",nameNode.args[1])
+      protoName.args[1] = Symbol(prefix,nameNode.args[1])
       protoName.args[2] = inheritFrom
       return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
               protoName,
@@ -197,10 +197,15 @@ function register(module_,newStructName,prototypeName,fields)
 end
 
 
-macro protostruct(struct_)
+macro protostruct(struct_,prefix_ = "Proto")
   #dump(struct_)
   try
-    newName,name,newStructLightName,lightname = newnames(struct_,__module__)
+    prefix = string(__module__.eval(prefix_))
+    if length(prefix) == 0
+        throw("Prefix must have finite Length")
+    end
+
+    newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
     fields = extractfields(struct_)
     D1_struct = gensym()
     D1_fields = gensym()
@@ -219,8 +224,6 @@ macro protostruct(struct_)
     end)
 
     else #inheritence case
-      D1_oldFields = gensym()
-      D1_struct = gensym()
       parentType = get(shadowMap,__module__.eval(name.args[2]),missing)
       oldFields = get(fieldBacking,parentType ,[])
       assertcollisionfree(fields,oldFields)

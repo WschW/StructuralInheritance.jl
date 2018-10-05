@@ -72,6 +72,21 @@ end
 @test fieldnames(H) == (:MA_FA,:A,:C)
 @test fieldtype.(H,[1,2,3]) == [Int,MA.A,A]
 
+@test StructuralInheritance.@protostruct(struct I <: A
+    FC::Float32
+    FD
+end,"ProtoType") == ProtoTypeI
+
+@test StructuralInheritance.@protostruct(struct J
+    FC::Float32
+    FD
+end,"ProtoType") == ProtoTypeJ
+
+@test_throws Any StructuralInheritance.@protostruct(struct K
+    FC::Float32
+    FD
+end,"") == ProtoTypeK
+
 #TODO: TEST parametric inheritence
 
 #TODO: TEST interactions between module sanitization and parametric inheritence
