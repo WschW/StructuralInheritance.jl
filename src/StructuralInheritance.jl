@@ -185,6 +185,9 @@ function deparametrize_lightName(name)
     end
 end
 
+"""
+registers a new struct and abstract type pair
+"""
 function register(module_,newStructName,prototypeName,fields)
     nSName =  deparametrize_lightName(newStructName)
     pName = deparametrize_lightName(prototypeName)
@@ -196,7 +199,16 @@ function register(module_,newStructName,prototypeName,fields)
     StructuralInheritance.shadowMap[proto] = proto
 end
 
+"""
+@protostruct(struct_ [, prefix_])
 
+creates a struct that can have structure inherited from it if also defined by
+@protostruct, creates an abstract type with a name given by the struct
+definitions name and a prefix. The concrete type inherits from the abstract
+type and anything which inherits the concrrete types structure also inherits
+from the abstract type.
+
+"""
 macro protostruct(struct_,prefix_ = "Proto")
   #dump(struct_)
     try
