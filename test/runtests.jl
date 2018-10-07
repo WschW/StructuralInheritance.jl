@@ -1,90 +1,90 @@
 using Test
 
 #NOTE: @testset will not work for testing this.
-using StructuralInheritance
+using Main.StructuralInheritance
 ## TEST BASIC STRUCTURAL INHERITENCE ##
 
   StructuralInheritance.@protostruct struct A
-     FA::Int
-     FB
+     f_a::Int
+     f_b
   end
 
   StructuralInheritance.@protostruct struct B <: A
-      FC::Float32
-      FD
+      f_c::Float32
+      f_d
   end
 
-  @test fieldnames(B) == (:FA,:FB,:FC,:FD) #Test names of fields and order
+  @test fieldnames(B) == (:f_a,:f_b,:f_c,:f_d) #Test names of fields and order
   @test fieldtype.(B,[1,2,3,4]) == [Int,Any,Float32,Any]
   @test B <: ProtoB && B <: ProtoA
 
 # exception thrown when inherited class uses same names
   @test_throws Any StructuralInheritance.@protostruct struct C <: A
-      FA::Int
+      f_a::Int
   end
 
   @test_throws Any StructuralInheritance.@protostruct struct D <: A
-      FB
+      f_b
   end
 
   # exception thrown trying to inherit from a concrete class not defined
   # by @protostruct
   @test_throws Any StructuralInheritance.@protostruct struct E <: Int
-      B
+      f_b
   end
 
   @test_throws Any StructuralInheritance.@protostruct struct E <: Int
-      B
+      f_b
   end
 
   #inheritence from any abstract class
   StructuralInheritance.@protostruct struct F <: Real
-      B
+      f_b
   end
 
-  @test F(3).B == 3
+  @test F(3).f_b == 3
 
   StructuralInheritance.@protostruct struct G <: B
-      FE::Float32
-      FF
+      f_e::Float32
+      f_f
   end
 
-  @test fieldnames(G) == (:FA,:FB,:FC,:FD,:FE,:FF) #Test names of fields and order
+  @test fieldnames(G) == (:f_a,:f_b,:f_c,:f_d,:f_e,:f_f) #Test names of fields and order
   @test fieldtype.(G,[1,2,3,4,5,6]) == [Int,Any,Float32,Any,Float32,Any]
   @test G <: ProtoG && G <: ProtoB && G <: ProtoA
 
 
 #TEST MODULE SANITIZATION FACILITY
 module MA
-  using StructuralInheritance
+  using Main.StructuralInheritance
   @protostruct struct A
-    MA_FA::Int
+    f_a_MA::Int
   end
   @protostruct struct B <: A
-    A::A
+    f_a::A
   end
 end
 
 @protostruct struct H <: MA.B
-  C::A
+  f_c::A
 end
 
-@test fieldnames(H) == (:MA_FA,:A,:C)
+@test fieldnames(H) == (:f_a_MA,:f_a,:f_c)
 @test fieldtype.(H,[1,2,3]) == [Int,MA.A,A]
 
 @test StructuralInheritance.@protostruct(struct I <: A
-    FC::Float32
-    FD
+    f_c::Float32
+    f_d
 end,"ProtoType") == ProtoTypeI
 
 @test StructuralInheritance.@protostruct(struct J
-    FC::Float32
-    FD
+    f_c::Float32
+    f_d
 end,"ProtoType") == ProtoTypeJ
 
 @test_throws Any StructuralInheritance.@protostruct(struct K
-    FC::Float32
-    FD
+    f_c::Float32
+    f_d
 end,"") == ProtoTypeK
 
 #TODO: TEST parametric inheritence

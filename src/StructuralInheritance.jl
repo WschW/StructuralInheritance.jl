@@ -14,9 +14,9 @@ const shadowMap = Dict{Type,Type}()
 Creates an abstract type with the given name
 """
 function abstracttype(name)
-  basicForm = :(abstract type Replace end)
-  basicForm.args[1] = name
-  basicForm
+    basicForm = :(abstract type Replace end)
+    basicForm.args[1] = name
+    basicForm
 end
 
 
@@ -24,83 +24,83 @@ end
 returns an array with only the field definitions
 """
 function filtertofields(_quote)
-  filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),_quote.args)
+    filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),_quote.args)
 end
 
 """
 gets the name of a struct definition
 """
 function extractname(leaf)
-  leaf.args[2]
+    leaf.args[2]
 end
 
 """
 extracts the fields from a struct definition
 """
 function extractfields(leaf)
-  filtertofields(leaf.args[3])
+    filtertofields(leaf.args[3])
 end
 
 
 function newnames(structDefinition,module_,prefix)
-  """
-  handle inheritence conversions
-  """
-  function rectify(x)
-    val = module_.eval(x)
-    if !(typeof(val) <: Type)
-      throw("must inherit from a type")
+    """
+    handle inheritence conversions
+    """
+    function rectify(x)
+        val = module_.eval(x)
+        if !(typeof(val) <: Type)
+            throw("must inherit from a type")
+        end
+        if isabstracttype(val)
+            x
+        elseif haskey(shadowMap,val)
+            :($(shadowMap[val]))
+        else
+            throw("inheritence from concrete types is limited to those defined by @protostruct, $val not found")
+        end
     end
-    if isabstracttype(val)
-      x
-    elseif haskey(shadowMap,val)
-      :($(shadowMap[val]))
-    else
-      throw("inheritence from concrete types is limited to those defined by @protostruct, $val not found")
+
+    nameNode = structDefinition.args[2]
+
+    if typeof(nameNode) <: Symbol
+        protoName = Symbol(prefix,nameNode)
+        return (:($nameNode <: $protoName),protoName,nameNode,protoName)
     end
-  end
 
-  nameNode = structDefinition.args[2]
-
-  if typeof(nameNode) <: Symbol
-    protoName = Symbol(prefix,nameNode)
-    return (:($nameNode <: $protoName),protoName,nameNode,protoName)
-  end
-
-  if nameNode.head == :curly
-    protoName = deepcopy(nameNode)
-    protoName.args[1] = Symbol(prefix,nameNode.args[1])
-    return (:( $(nameNode) <: $(protoName)),
-            protoName,
-            nameNode,
-            protoName)
-  end
-
-  if nameNode.head == :<:
-    inheritFrom = rectify(deepcopy(nameNode.args[2]))
-    structHead = deepcopy(nameNode.args[1])
-
-    if typeof(nameNode.args[1]) <: Expr && nameNode.args[1].head == :curly
+    if nameNode.head == :curly
         protoName = deepcopy(nameNode)
-        protoName.args[1].args[1] = Symbol(prefix,nameNode.args[1].args[1])
-        protoName.args[2] = inheritFrom
-        return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+        protoName.args[1] = Symbol(prefix,nameNode.args[1])
+        return (:( $(nameNode) <: $(protoName)),
                 protoName,
-                nameNode.args[1],
-                protoName.args[1])
-
-    elseif typeof(nameNode.args[1]) <: Symbol
-      protoName = deepcopy(nameNode)
-      protoName.args[1] = Symbol(prefix,nameNode.args[1])
-      protoName.args[2] = inheritFrom
-      return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
-              protoName,
-              nameNode.args[1],
-              protoName.args[1])
+                nameNode,
+                protoName)
     end
-  end
 
-  throw("structure of strucure name not identified")
+    if nameNode.head == :<:
+        inheritFrom = rectify(deepcopy(nameNode.args[2]))
+        structHead = deepcopy(nameNode.args[1])
+
+        if typeof(nameNode.args[1]) <: Expr && nameNode.args[1].head == :curly
+            protoName = deepcopy(nameNode)
+            protoName.args[1].args[1] = Symbol(prefix,nameNode.args[1].args[1])
+            protoName.args[2] = inheritFrom
+            return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+                    protoName,
+                    nameNode.args[1],
+                    protoName.args[1])
+
+        elseif typeof(nameNode.args[1]) <: Symbol
+            protoName = deepcopy(nameNode)
+            protoName.args[1] = Symbol(prefix,nameNode.args[1])
+            protoName.args[2] = inheritFrom
+            return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+                    protoName,
+                    nameNode.args[1],
+                    protoName.args[1])
+        end
+    end
+
+    throw("structure of strucure name not identified")
 end
 
 
@@ -137,30 +137,30 @@ end
 annotates module information to unanotated typed fields
 """
 function sanitize(module_,fields)
-  fields = deepcopy(fields)
-  modulePath = fullname(module_)
-  function addpath(x)
-    annotationPath = push!(Any[modulePath...],x)
-    reverse!(annotationPath)
-    annotationPath[1:(end-1)] .= QuoteNode.(annotationPath[1:(end-1)])
-    while length(annotationPath) > 1
-      first = pop!(annotationPath)
-      second = pop!(annotationPath)
-      push!(annotationPath,Expr(:.,first,second))
+    fields = deepcopy(fields)
+    modulePath = fullname(module_)
+    function addpath(x)
+        annotationPath = push!(Any[modulePath...],x)
+        reverse!(annotationPath)
+        annotationPath[1:(end-1)] .= QuoteNode.(annotationPath[1:(end-1)])
+        while length(annotationPath) > 1
+            first = pop!(annotationPath)
+            second = pop!(annotationPath)
+            push!(annotationPath,Expr(:.,first,second))
+        end
+        annotationPath[1]
     end
-    annotationPath[1]
-  end
 
-  function addpathif(x)
-    if typeof(x) <: Symbol
-      x
-    else
-      x.args[2] = addpath(x.args[2])
-      x
+    function addpathif(x)
+        if typeof(x) <: Symbol
+            x
+        else
+            x.args[2] = addpath(x.args[2])
+            x
+        end
     end
-  end
 
-  addpathif.(fields)
+    addpathif.(fields)
 end
 
 
@@ -199,51 +199,51 @@ end
 
 macro protostruct(struct_,prefix_ = "Proto")
   #dump(struct_)
-  try
-    prefix = string(__module__.eval(prefix_))
-    if length(prefix) == 0
-        throw("Prefix must have finite Length")
+    try
+        prefix = string(__module__.eval(prefix_))
+        if length(prefix) == 0
+            throw("Prefix must have finite Length")
+        end
+
+        newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
+        fields = extractfields(struct_)
+        D1_struct = gensym()
+        D1_fields = gensym()
+        sanitizedFields = sanitize(__module__,fields)
+        prototypeDefinition = abstracttype(name)
+        structDefinition = rename(struct_,newName)
+
+        if typeof(name) <: Symbol || name.head == :curly
+            return esc(quote
+                $prototypeDefinition
+                $structDefinition
+                StructuralInheritance.register($__module__,
+                                               $(Meta.quot(newStructLightName)),
+                                               $(Meta.quot(lightname)),
+                                               $(Meta.quot(sanitizedFields)))
+            end)
+
+        else #inheritence case
+            parentType = get(shadowMap,__module__.eval(name.args[2]),missing)
+            oldFields = get(fieldBacking,parentType ,[])
+            assertcollisionfree(fields,oldFields)
+            fields = sanitize(__module__,fields)
+            fields = vcat(oldFields,fields)
+            structDefinition = replacefields(structDefinition,fields)
+            return esc(quote
+                $prototypeDefinition
+                $structDefinition
+                StructuralInheritance.register($__module__,
+                                               $(Meta.quot(newStructLightName)),
+                                               $(Meta.quot(lightname)),
+                                               $(Meta.quot(fields)))
+
+            end)
+        end
+
+    catch e
+        return :(throw($e))
     end
-
-    newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
-    fields = extractfields(struct_)
-    D1_struct = gensym()
-    D1_fields = gensym()
-    sanitizedFields = sanitize(__module__,fields)
-    prototypeDefinition = abstracttype(name)
-    structDefinition = rename(struct_,newName)
-
-    if typeof(name) <: Symbol || name.head == :curly
-      return esc(quote
-        $prototypeDefinition
-        $structDefinition
-        StructuralInheritance.register($__module__,
-                                       $(Meta.quot(newStructLightName)),
-                                       $(Meta.quot(lightname)),
-                                       $(Meta.quot(sanitizedFields)))
-    end)
-
-    else #inheritence case
-      parentType = get(shadowMap,__module__.eval(name.args[2]),missing)
-      oldFields = get(fieldBacking,parentType ,[])
-      assertcollisionfree(fields,oldFields)
-      fields = sanitize(__module__,fields)
-      fields = vcat(oldFields,fields)
-      structDefinition = replacefields(structDefinition,fields)
-      return esc(quote
-        $prototypeDefinition
-        $structDefinition
-        StructuralInheritance.register($__module__,
-                                       $(Meta.quot(newStructLightName)),
-                                       $(Meta.quot(lightname)),
-                                       $(Meta.quot(fields)))
-
-      end)
-    end
-
-  catch e
-      return :(throw($e))
-  end
 end
 
 
