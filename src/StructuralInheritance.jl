@@ -16,11 +16,7 @@ const parameterMap = Dict{Type,Vector{Any}}()
 """
 Creates an abstract type with the given name
 """
-function abstracttype(name)
-    basicForm = :(abstract type Replace end)
-    basicForm.args[1] = name
-    basicForm
-end
+abstracttype(name) = :(abstract type $name end)
 
 
 """
@@ -33,16 +29,13 @@ end
 """
 gets the name of a struct definition
 """
-function extractname(leaf)
-    leaf.args[2]
-end
+extractname(leaf) = leaf.args[2]
 
 """
 extracts the fields from a struct definition
 """
-function extractfields(leaf)
-    filtertofields(leaf.args[3])
-end
+extractfields(leaf) = filtertofields(leaf.args[3])
+
 
 
 function newnames(structDefinition,module_,prefix)
