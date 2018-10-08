@@ -169,33 +169,44 @@ function replacefields(struct_,fields)
 end
 
 """
+adds source module information to the type name
+"""
+function fulltypename(x,__module__)
+    modulePath = fullname(__module__)
+    annotationPath = push!(Any[modulePath...],x)
+    reverse!(annotationPath)
+    annotationPath[1:(end-1)] .= QuoteNode.(annotationPath[1:(end-1)])
+    while length(annotationPath) > 1
+        first = pop!(annotationPath)
+        second = pop!(annotationPath)
+        push!(annotationPath,Expr(:.,first,second))
+    end
+    annotationPath[1]
+end
+
+"""
 annotates module information to unanotated typed fields
 """
-function sanitize(module_,fields,inhibit)
+function sanitize(__module__,fields,inhibit)
     fields = deepcopy(fields)
-    modulePath = fullname(module_)
-    function addpath(x)
-        annotationPath = push!(Any[modulePath...],x)
-        reverse!(annotationPath)
-        annotationPath[1:(end-1)] .= QuoteNode.(annotationPath[1:(end-1)])
-        while length(annotationPath) > 1
-            first = pop!(annotationPath)
-            second = pop!(annotationPath)
-            push!(annotationPath,Expr(:.,first,second))
-        end
-        annotationPath[1]
-    end
 
-    function addpathif(x)
+    function addpathif(x,__module__)
         if typeof(x) <: Symbol  || x in inhibit
             x
         else
-            x.args[2] = addpath(x.args[2])
+            x.args[2] = fulltypename(x.args[2],__module__)
             x
         end
     end
 
-    addpathif.(fields)
+    (x->addpathif(x,__module__)).(fields)
+end
+
+"""
+update parameters from old fields
+"""
+function updateParameters(oldFields,parameters,parentType,__module__)
+    newFields = deepcopy(oldFields) #TODO:
 end
 
 
@@ -275,7 +286,7 @@ macro protostruct(struct_,prefix_ = "Proto")
             assertcollisionfree(fields,oldFields)
             parameters = getparameters(newName);
             fields = sanitize(__module__,fields,parameters[1])
-            #oldFields = updateParameters(oldFields,parameters,parentType)
+            oldFields = updateParameters(oldFields,parameters,parentType,__module__)
             fields = vcat(oldFields,fields)
             structDefinition = replacefields(structDefinition,fields)
             return esc(quote
