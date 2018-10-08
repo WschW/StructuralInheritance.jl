@@ -9,6 +9,9 @@ const fieldBacking = Dict{Union{Type,Missing},Vector{Any}}()
 #concrete -> prototype
 const shadowMap = Dict{Type,Type}()
 
+#store parametric type information
+const parameterMap = Dict{Type,Vector{Any}}()
+
 
 """
 Creates an abstract type with the given name
@@ -67,20 +70,11 @@ function newnames(structDefinition,module_,prefix)
         return (:($nameNode <: $protoName),protoName,nameNode,protoName)
     end
 
-    if nameNode.head == :curly
-        protoName = deepcopy(nameNode)
-        protoName.args[1] = Symbol(prefix,nameNode.args[1])
-        return (:( $(nameNode) <: $(protoName)),
-                protoName,
-                nameNode,
-                protoName)
-    end
-
     if nameNode.head == :<:
         inheritFrom = rectify(deepcopy(nameNode.args[2]))
         structHead = deepcopy(nameNode.args[1])
 
-        if typeof(nameNode.args[1]) <: Expr && nameNode.args[1].head == :curly
+        if isparametric(nameNode)
             protoName = deepcopy(nameNode)
             protoName.args[1].args[1] = Symbol(prefix,nameNode.args[1].args[1])
             protoName.args[2] = inheritFrom
@@ -100,8 +94,49 @@ function newnames(structDefinition,module_,prefix)
         end
     end
 
+
+    if isparametric(nameNode)
+        protoName = deepcopy(nameNode)
+        protoName.args[1] = Symbol(prefix,nameNode.args[1])
+        return (:( $(nameNode) <: $(protoName)),
+                protoName,
+                nameNode,
+                protoName)
+    end
+
     throw("structure of strucure name not identified")
 end
+
+function isparametric(x)
+    if typeof(x) <: Expr
+       x.head == :curly || any(isparametric,x.args)
+    else
+        false
+    end
+end
+
+function getparameters(x)
+    if typeof(x) <: Expr && x.head == :<:
+        (getparameters_(x),getparameters_(x))
+    else
+        (getparameters_(x),)
+    end
+end
+
+function getparameters_(x)
+    if typeof(x) <: Expr && x.head == :curly
+        x.args[2:end]
+    elseif typeof(x) <: Expr
+        for subexpr = x.args
+            parameters = getparameters_(subexpr)
+            if parameters != []
+                return parameters
+            end
+        end
+    end
+    []
+end
+
 
 
 function fieldsymbols(fields)
@@ -136,7 +171,7 @@ end
 """
 annotates module information to unanotated typed fields
 """
-function sanitize(module_,fields)
+function sanitize(module_,fields,inhibit)
     fields = deepcopy(fields)
     modulePath = fullname(module_)
     function addpath(x)
@@ -152,7 +187,7 @@ function sanitize(module_,fields)
     end
 
     function addpathif(x)
-        if typeof(x) <: Symbol
+        if typeof(x) <: Symbol  || x in inhibit
             x
         else
             x.args[2] = addpath(x.args[2])
@@ -218,10 +253,9 @@ macro protostruct(struct_,prefix_ = "Proto")
         end
 
         newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
+        parameters = getparameters(newName)
         fields = extractfields(struct_)
-        D1_struct = gensym()
-        D1_fields = gensym()
-        sanitizedFields = sanitize(__module__,fields)
+        sanitizedFields = sanitize(__module__,fields,parameters)
         prototypeDefinition = abstracttype(name)
         structDefinition = rename(struct_,newName)
 
@@ -239,7 +273,9 @@ macro protostruct(struct_,prefix_ = "Proto")
             parentType = get(shadowMap,__module__.eval(name.args[2]),missing)
             oldFields = get(fieldBacking,parentType ,[])
             assertcollisionfree(fields,oldFields)
-            fields = sanitize(__module__,fields)
+            parameters = getparameters(newName);
+            fields = sanitize(__module__,fields,parameters[1])
+            #oldFields = updateParameters(oldFields,parameters,parentType)
             fields = vcat(oldFields,fields)
             structDefinition = replacefields(structDefinition,fields)
             return esc(quote

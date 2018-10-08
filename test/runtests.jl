@@ -87,6 +87,13 @@ end,"ProtoType") == ProtoTypeJ
     f_d
 end,"") == ProtoTypeK
 
-#TODO: TEST parametric inheritence
+#TEST PARAMETRIC INHERITENCE
+
+@test StructuralInheritance.@protostruct(struct K{T}
+    f_a::T
+end) == ProtoK
+
+@test fieldtype(K{Int},1) == Int
+@test fieldnames(K) == (:f_a,)
 
 #TODO: TEST interactions between module sanitization and parametric inheritence
