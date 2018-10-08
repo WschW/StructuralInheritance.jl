@@ -112,12 +112,12 @@ function getparameters(x)
     if typeof(x) <: Expr && x.head == :<:
         (getparameters_(x),getparameters_(x))
     else
-        (getparameters_(x),)
+        (getparameters_(x),[])
     end
 end
 
 function getparameters_(x)
-    if typeof(x) <: Expr && x.head == :curly
+   if typeof(x) <: Expr && x.head == :curly
         x.args[2:end]
     elseif typeof(x) <: Expr
         for subexpr = x.args
@@ -227,15 +227,17 @@ end
 """
 registers a new struct and abstract type pair
 """
-function register(module_,newStructName,prototypeName,fields)
+function register(module_,newStructName,prototypeName,fields,parameters)
     nSName =  deparametrize_lightName(newStructName)
     pName = deparametrize_lightName(prototypeName)
 
     concrete = module_.eval(nSName)
     proto = module_.eval(pName)
-    StructuralInheritance.fieldBacking[proto] = fields
-    StructuralInheritance.shadowMap[concrete] = proto
-    StructuralInheritance.shadowMap[proto] = proto
+
+    fieldBacking[proto] = fields
+    shadowMap[concrete] = proto
+    parameterMap[proto] = parameters
+    shadowMap[proto] = proto
 end
 
 """
@@ -270,7 +272,8 @@ macro protostruct(struct_,prefix_ = "Proto")
                 StructuralInheritance.register($__module__,
                                                $(Meta.quot(newStructLightName)),
                                                $(Meta.quot(lightname)),
-                                               $(Meta.quot(sanitizedFields)))
+                                               $(Meta.quot(sanitizedFields)),
+                                               $(Meta.quot(parameters[1])))
             end)
 
         else #inheritence case
@@ -288,7 +291,8 @@ macro protostruct(struct_,prefix_ = "Proto")
                 StructuralInheritance.register($__module__,
                                                $(Meta.quot(newStructLightName)),
                                                $(Meta.quot(lightname)),
-                                               $(Meta.quot(fields)))
+                                               $(Meta.quot(fields)),
+                                               $(Meta.quot(parameters[1])))
 
             end)
         end
