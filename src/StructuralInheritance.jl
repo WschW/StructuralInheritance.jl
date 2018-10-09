@@ -188,7 +188,7 @@ function sanitize(__module__,fields,inhibit)
     fields = deepcopy(fields)
 
     function addpathif(x,__module__)
-        if typeof(x) <: Symbol || x in inhibit
+        if typeof(x) <: Symbol || x.args[2] in inhibit
             x
         else
             x.args[2] = fulltypename(x.args[2],__module__)
@@ -311,7 +311,6 @@ macro protostruct(struct_,prefix_ = "Proto")
                                                $(Meta.quot(lightname)),
                                                $(Meta.quot(fields)),
                                                $(Meta.quot(parameters[1])))
-
             end)
         end
 

@@ -56,7 +56,7 @@ using StructuralInheritance
 
 #TEST MODULE SANITIZATION FACILITY
 module MA
-  using StructuralInheritance
+  using Main.StructuralInheritance
   @protostruct struct A
     f_a_MA::Int
   end
@@ -95,5 +95,17 @@ end) == ProtoK
 
 @test fieldtype(K{Int},1) == Int
 @test fieldnames(K) == (:f_a,)
+
+
+@test @protostruct(struct L{T} <: K{T}
+    f_b::T
+end) == ProtoL
+
+@test fieldnames(L) == (:f_a,:f_b)
+@test fieldtype.(L{Real},[1,2]) == [Real,Real]
+
+@test_throws Any @protostruct(struct N{R} <: K{R}
+    f_b::R
+end)
 
 #TODO: TEST interactions between module sanitization and parametric inheritence
