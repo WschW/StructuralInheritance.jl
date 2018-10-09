@@ -18,6 +18,17 @@ Creates an abstract type with the given name
 """
 abstracttype(name) = :(abstract type $name end)
 
+"""
+attaches parameters to a name
+"""
+function addparams(name,params)
+    if length(params) == 0
+        name
+    else
+        :($name{$(params...)})
+    end
+end
+
 
 """
 returns an array with only the field definitions
@@ -50,7 +61,7 @@ function newnames(structDefinition,module_,prefix)
         if isabstracttype(val)
             x
         elseif haskey(shadowMap,val)
-            :($(shadowMap[val]))
+            addparams(:($(shadowMap[val])),getparameters(x)[1])
         else
             throw("inheritence from concrete types is limited to those defined by @protostruct, $val not found")
         end
@@ -285,7 +296,7 @@ macro protostruct(struct_,prefix_ = "Proto")
             end)
 
         else #inheritence case
-            parentType = get(shadowMap,__module__.eval(name.args[2]),missing)
+            parentType = get(shadowMap,__module__.eval(deparametrize_lightName(name.args[2])),missing)
             oldFields = get(fieldBacking,parentType ,[])
             assertcollisionfree(fields,oldFields)
             fields = sanitize(__module__,fields,parameters[1])
