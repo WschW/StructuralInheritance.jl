@@ -43,7 +43,7 @@ function newnames(structDefinition,module_,prefix)
     handle inheritence conversions
     """
     function rectify(x)
-        val = module_.eval(x)
+        val = module_.eval(deparametrize_lightName(x))
         if !(typeof(val) <: Type)
             throw("must inherit from a type")
         end
@@ -110,26 +110,19 @@ end
 
 function getparameters(x)
     if typeof(x) <: Expr && x.head == :<:
-        (getparameters_(x),getparameters_(x))
+        (getparameters_(x.args[1]),getparameters_(x.args[2]))
     else
         (getparameters_(x),[])
     end
 end
 
 function getparameters_(x)
-   if typeof(x) <: Expr && x.head == :curly
+    if typeof(x) <: Expr && x.head == :curly
         x.args[2:end]
-    elseif typeof(x) <: Expr
-        for subexpr = x.args
-            parameters = getparameters_(subexpr)
-            if parameters != []
-                return parameters
-            end
-        end
+    else
+        []
     end
-    []
 end
-
 
 
 function fieldsymbols(fields)
@@ -184,7 +177,7 @@ function sanitize(__module__,fields,inhibit)
     fields = deepcopy(fields)
 
     function addpathif(x,__module__)
-        if typeof(x) <: Symbol  || x in inhibit
+        if typeof(x) <: Symbol || x in inhibit
             x
         else
             x.args[2] = fulltypename(x.args[2],__module__)
@@ -200,6 +193,21 @@ update parameters from old fields
 """
 function updateParameters(oldFields,parameters,parentType,__module__)
     newFields = deepcopy(oldFields) #TODO:
+    update(x::Symbol) = x
+    function update(x)
+        y = deepcopy(x)
+        if x.args[2] in oldFields
+            loc = findfirst(y->(y==x.args[2]),oldFields)
+            newParam = parameters[2][loc]
+            if newParam in parameters[1]
+                y.args[2] = newParam
+            else
+                y.args = fulltypename(y,__module__)
+            end
+        end
+        y
+    end
+    update.(newFields)
 end
 
 
@@ -259,9 +267,9 @@ macro protostruct(struct_,prefix_ = "Proto")
         end
 
         newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
-        parameters = getparameters(newName)
+        parameters = getparameters(struct_.args[2])
         fields = extractfields(struct_)
-        sanitizedFields = sanitize(__module__,fields,parameters)
+        sanitizedFields = sanitize(__module__,fields,parameters[1])
         prototypeDefinition = abstracttype(name)
         structDefinition = rename(struct_,newName)
 
@@ -280,7 +288,6 @@ macro protostruct(struct_,prefix_ = "Proto")
             parentType = get(shadowMap,__module__.eval(name.args[2]),missing)
             oldFields = get(fieldBacking,parentType ,[])
             assertcollisionfree(fields,oldFields)
-            parameters = getparameters(newName);
             fields = sanitize(__module__,fields,parameters[1])
             oldFields = updateParameters(oldFields,parameters,parentType,__module__)
             fields = vcat(oldFields,fields)
