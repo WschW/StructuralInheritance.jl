@@ -1,7 +1,7 @@
 using Test
 
 #NOTE: @testset will not work for testing this.
-using StructuralInheritance
+using Main.StructuralInheritance
 ## TEST BASIC STRUCTURAL INHERITENCE ##
 
   StructuralInheritance.@protostruct struct A
@@ -104,8 +104,8 @@ end) == ProtoL
 @test fieldnames(L) == (:f_a,:f_b)
 @test fieldtype.(L{Real},[1,2]) == [Real,Real]
 
-@test_throws Any @protostruct(struct N{R} <: K{R}
+@test @protostruct(struct N{R} <: K{R}
     f_b::R
-end)
+end) == ProtoN
 
 #TODO: TEST interactions between module sanitization and parametric inheritence

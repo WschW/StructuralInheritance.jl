@@ -202,13 +202,13 @@ end
 """
 update parameters from old fields
 """
-function updateParameters(oldFields,parameters,parentType,__module__)
-    newFields = deepcopy(oldFields) #TODO:
+function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
+    newFields = deepcopy(oldFields)
     update(x::Symbol) = x
     function update(x)
         y = deepcopy(x)
-        if x.args[2] in oldFields
-            loc = findfirst(y->(y==x.args[2]),oldFields)
+        if y.args[2] in oldParams
+            loc = findfirst(y->(y==x.args[2]),oldParams)
             newParam = parameters[2][loc]
             if newParam in parameters[1]
                 y.args[2] = newParam
@@ -300,7 +300,11 @@ macro protostruct(struct_,prefix_ = "Proto")
             oldFields = get(fieldBacking,parentType ,[])
             assertcollisionfree(fields,oldFields)
             fields = sanitize(__module__,fields,parameters[1])
-            oldFields = updateParameters(oldFields,parameters,parentType,__module__)
+            oldFields = updateParameters(oldFields,
+                                        get(parameterMap,parentType,[]),
+                                         parameters,
+                                         parentType,
+                                         __module__)
             fields = vcat(oldFields,fields)
             structDefinition = replacefields(structDefinition,fields)
             return esc(quote
