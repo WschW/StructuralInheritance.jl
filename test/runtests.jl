@@ -108,4 +108,29 @@ end) == ProtoL
     f_b::R
 end) == ProtoN
 
-#TODO: TEST interactions between module sanitization and parametric inheritence
+
+@test fieldnames(N) == (:f_a,:f_b)
+@test fieldtype.(N{Complex},[1,2]) == [Complex,Complex]
+
+
+@protostruct mutable struct BB
+        f_a::Int
+end
+
+@protostruct mutable struct CC{A,BB} <: BB
+    f_b::A
+    f_c::BB
+end
+
+try #NOTE: error very hard to catch, remove @macroexpand once solution is found
+    @test_broken @macroexpand @protostruct mutable struct DD{C,D} <: CC{D,Base.Complex{BB}}
+        f_d::C
+    end
+catch
+end
+@test_broken @protostruct mutable struct O <: MA.DD{Int,Real}
+    f_e::Complex
+end == ProtoO
+
+#@test_broken @test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
+#@test_broken @test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex,Int,Complex]
