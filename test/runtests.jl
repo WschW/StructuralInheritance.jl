@@ -1,7 +1,7 @@
 using Test
 
 #NOTE: @testset will not work for testing this.
-using Main.StructuralInheritance
+using StructuralInheritance
 ## TEST BASIC STRUCTURAL INHERITENCE ##
 
   StructuralInheritance.@protostruct struct A
@@ -56,7 +56,7 @@ using Main.StructuralInheritance
 
 #TEST MODULE SANITIZATION FACILITY
 module MA
-  using Main.StructuralInheritance
+  using StructuralInheritance
   @protostruct struct A
     f_a_MA::Int
   end
