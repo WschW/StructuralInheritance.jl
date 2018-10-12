@@ -61,7 +61,7 @@ function newnames(structDefinition,module_,prefix)
         if isabstracttype(val)
             x
         elseif haskey(shadowMap,val)
-            addparams(:($(shadowMap[val])),getparameters(x)[1])
+            addparams(:($(shadowMap[val])),getparameters(x))
         else
             throw("inheritence from concrete types is limited to those defined by @protostruct, $val not found")
         end
@@ -119,21 +119,16 @@ function isparametric(x)
     end
 end
 
-function getparameters(x)
+function get2parameters(x)
     if typeof(x) <: Expr && x.head == :<:
-        (getparameters_(x.args[1]),getparameters_(x.args[2]))
+        (getparameters(x.args[1]),getparameters(x.args[2]))
     else
-        (getparameters_(x),[])
+        (getparameters(x),[])
     end
 end
 
-function getparameters_(x)
-    if typeof(x) <: Expr && x.head == :curly
-        x.args[2:end]
-    else
-        []
-    end
-end
+getparameters(x) = isparametric(x) ? x.args[2:end] : []
+
 
 
 function fieldsymbols(fields)
@@ -168,7 +163,16 @@ end
 """
 adds source module information to the type name
 """
-function fulltypename(x,__module__)
+function fulltypename(x,__module__,inhibit = [])
+    if x in inhibit
+        return x
+    end
+    if isparametric(x)
+        partialparams = getparameters(x)
+        fullparameters = [fulltypename(y,__module__,inhibit) for y in partialparams]
+        fullfirst = fulltypename(deparametrize_lightName(x),__module__,inhibit)
+        return addparams(fullfirst,fullparameters)
+    end
     modulePath = fullname(__module__)
     annotationPath = push!(Any[modulePath...],x)
     reverse!(annotationPath)
@@ -187,16 +191,13 @@ annotates module information to unanotated typed fields
 function sanitize(__module__,fields,inhibit)
     fields = deepcopy(fields)
 
-    function addpathif(x,__module__)
-        if typeof(x) <: Symbol || x.args[2] in inhibit
-            x
-        else
-            x.args[2] = fulltypename(x.args[2],__module__)
-            x
-        end
+    addpathif(x::Symbol) = x
+    function addpathif(x)
+        x.args[2] = fulltypename(x.args[2],__module__,inhibit)
+        x
     end
 
-    (x->addpathif(x,__module__)).(fields)
+    (x->addpathif(x)).(fields)
 end
 
 """
@@ -278,7 +279,7 @@ macro protostruct(struct_,prefix_ = "Proto")
         end
 
         newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
-        parameters = getparameters(struct_.args[2])
+        parameters = get2parameters(struct_.args[2])
         fields = extractfields(struct_)
         sanitizedFields = sanitize(__module__,fields,parameters[1])
         prototypeDefinition = abstracttype(name)
