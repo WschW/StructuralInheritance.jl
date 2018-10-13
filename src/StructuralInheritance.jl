@@ -118,6 +118,7 @@ function isparametric(x)
         false
     end
 end
+isfunction(x) = typeof(x) <: Expr && x.head == :call
 
 function get2parameters(x)
     if typeof(x) <: Expr && x.head == :<:
@@ -167,12 +168,19 @@ function fulltypename(x,__module__,inhibit = [])
     if x in inhibit
         return x
     end
-    if isparametric(x)
-        partialparams = getparameters(x)
-        fullparameters = [fulltypename(y,__module__,inhibit) for y in partialparams]
-        fullfirst = fulltypename(deparametrize_lightName(x),__module__,inhibit)
-        return addparams(fullfirst,fullparameters)
+    if isparametric(x)  || isfunction(x)
+        fullargs = [fulltypename(y,__module__,inhibit) for y in x.args]
+        return Expr(x.head,fullargs...)
     end
+
+    if typeof(x) <: Expr && (x.head == :vect || x.head == :vcat || x.head == :hcat)
+        return Expr(x.head,[fulltypename(y,__module__,inhibit) for y in x.args])
+    end
+
+    if !(typeof(x) <: Expr) && !(typeof(x) <: Symbol)
+        return x #must be a primitive
+    end
+
     modulePath = fullname(__module__)
     annotationPath = push!(Any[modulePath...],x)
     reverse!(annotationPath)

@@ -56,7 +56,7 @@ using StructuralInheritance
 
 #TEST MODULE SANITIZATION FACILITY
 module MA
-  using StructuralInheritance
+  using Main.StructuralInheritance
   @protostruct struct A
     f_a_MA::Int
   end
@@ -89,10 +89,10 @@ end,"") == ProtoTypeK
 
 #TEST PARAMETRIC INHERITENCE
 module M_paramfields
-    using StructuralInheritance
+    using Main.StructuralInheritance
     using Test
     @test @protostruct(struct A
-        f_a::Array{Float16}
+        f_a::Array{Float16,3}
     end) == ProtoA
 
     @test @protostruct(struct B <: A
@@ -100,11 +100,11 @@ module M_paramfields
     end) == ProtoB
 
     @test @protostruct(struct C <: B
-        field_c::Array{Float32}
+        field_c::Array{Float32,4}
     end) == ProtoC
 
     @test fieldnames(C) == (:f_a,:f_b,:field_c)
-    @test fieldtype.(C,[1,2,3]) == [Array{Float16},Complex{Float64},Array{Float32}]
+    @test fieldtype.(C,[1,2,3]) == [Array{Float16,3},Complex{Float64},Array{Float32,4}]
 end
 
 
