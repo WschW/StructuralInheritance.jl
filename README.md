@@ -9,10 +9,7 @@ pseudo structural inheritance for the Julia language
 
 ## Example
 ```Julia
-using StructuralInheritance
-
 julia> using StructuralInheritance
-[ Info: Recompiling stale cache file /Users/prime/.julia/compiled/v1.0/StructuralInheritance/Z6bEM.ji for StructuralInheritance [8444d97c-b5e1-11e8-1bb1-4d91caf0c934]
 
 julia> @protostruct struct A
          fieldFromA::Int
@@ -67,4 +64,4 @@ julia> getFieldA(C(3,"ok","c's new field"))
 
 ![Eaxmple structural inheritence diagram](InheritenceExampleDiagram.png)
 
-## Note: parametric inheritence is not yet supported
+## Note: inheriting from a specialized parametric struct is not currently supported
