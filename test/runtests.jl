@@ -69,6 +69,13 @@ end
   f_c::A
 end
 
+@protostruct struct H_2 <: MA.B
+  f_c::MA.A
+end
+
+@test fieldnames(H_2) == (:f_a_MA,:f_a,:f_c)
+@test fieldtype.(H_2,[1,2,3]) == [Int,MA.A,MA.A]
+
 @test fieldnames(H) == (:f_a_MA,:f_a,:f_c)
 @test fieldtype.(H,[1,2,3]) == [Int,MA.A,A]
 
@@ -92,7 +99,7 @@ module M_paramfields
     using Main.StructuralInheritance
     using Test
     @test @protostruct(struct A
-        f_a::Array{Float16,3}
+        f_a::Core.Main.Base.Array{Float16,3}
     end) == ProtoA
 
     @test @protostruct(struct B <: A
@@ -153,3 +160,21 @@ end == ProtoO
 
 #@test_broken @test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
 #@test_broken @test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex,Int,Complex]
+
+module M_literal_func
+    using Main.StructuralInheritance
+    f(x) = Int
+    f(x::Array) = length(x) == 2 ? Complex : Array
+    @macroexpand @protostruct struct P
+        f1::f(2)
+        f2::f([])
+        f3::f([1,2])
+    end
+end
+
+@protostruct struct Q <: M_literal_func.P
+    f4::Real
+end
+
+@test fieldnames(Q) == (:f1,:f2,:f3,:f4)
+@test_broken fieldtype.(Q,[1,2,3,4]) == [Int,Array,Complex,Real]

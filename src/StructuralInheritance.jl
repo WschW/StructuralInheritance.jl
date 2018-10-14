@@ -111,14 +111,24 @@ function newnames(structDefinition,module_,prefix)
     throw("structure of strucure name not identified")
 end
 
-function isparametric(x)
-    if typeof(x) <: Expr
-       x.head == :curly || any(isparametric,x.args)
-    else
-        false
+isparametric(x) = false
+isparametric(x::Expr) = x.head == :curly || any(isparametric,x.args)
+
+isfunction(x) = false
+isfunction(x::Expr) = x.head == :call
+
+ispath(x) = false
+ispath(x::Expr) = x.head == :.
+
+function getpath(x)
+    oldpath = Symbol[]
+    while ispath(x)
+        push!(oldpath,x.args[2].value)
+        x = x.args[1]
     end
+    oldpath = push!(oldpath,x)
+    oldpath[end:-1:2], oldpath[1]
 end
-isfunction(x) = typeof(x) <: Expr && x.head == :call
 
 function get2parameters(x)
     if typeof(x) <: Expr && x.head == :<:
@@ -181,8 +191,10 @@ function fulltypename(x,__module__,inhibit = [])
         return x #must be a primitive
     end
 
-    modulePath = fullname(__module__)
-    annotationPath = push!(Any[modulePath...],x)
+    oldpath,x = getpath(x)
+
+    modulePath = append!(Any[fullname(__module__)...],oldpath)
+    annotationPath = push!(modulePath,x)
     reverse!(annotationPath)
     annotationPath[1:(end-1)] .= QuoteNode.(annotationPath[1:(end-1)])
     while length(annotationPath) > 1
