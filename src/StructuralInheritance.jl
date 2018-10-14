@@ -183,8 +183,8 @@ function fulltypename(x,__module__,inhibit = [])
         return Expr(x.head,fullargs...)
     end
 
-    if typeof(x) <: Expr && (x.head == :vect || x.head == :vcat || x.head == :hcat)
-        return Expr(x.head,[fulltypename(y,__module__,inhibit) for y in x.args])
+    if typeof(x) <: Expr && (x.head in [:vect,:hcat,:row,:vcat])
+        return Expr(x.head,[fulltypename(y,__module__,inhibit) for y in x.args]...)
     end
 
     if !(typeof(x) <: Expr) && !(typeof(x) <: Symbol)

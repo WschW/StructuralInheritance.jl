@@ -177,4 +177,4 @@ end
 end
 
 @test fieldnames(Q) == (:f1,:f2,:f3,:f4)
-@test_broken fieldtype.(Q,[1,2,3,4]) == [Int,Array,Complex,Real]
+@test fieldtype.(Q,[1,2,3,4]) == [Int,Array,Complex,Real]
