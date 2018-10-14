@@ -165,7 +165,7 @@ module M_literal_func
     using Main.StructuralInheritance
     f(x) = Int
     f(x::Array) = length(x) == 2 ? Complex : Array
-    @macroexpand @protostruct struct P
+    @protostruct struct P
         f1::f(2)
         f2::f([])
         f3::f([1,2])
