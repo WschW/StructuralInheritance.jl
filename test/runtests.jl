@@ -137,17 +137,16 @@ end) == ProtoN
         f_a::Int
 end
 
-@protostruct mutable struct CC{A,BB} <: BB
+@protostruct mutable struct CC{A,BA} <: BB
     f_b::A
-    f_c::BB
+    f_c::BA
 end
 
-try #NOTE: error very hard to catch, remove @macroexpand once solution is found
-    @test_broken @macroexpand @protostruct mutable struct DD{C,D} <: CC{D,Base.Complex{BB}}
-        f_d::C
-    end
-catch
+
+@test_broken @protostruct mutable struct DD{C,D} <: CC{D,Complex}
+    f_d::C
 end
+
 @test_broken @protostruct mutable struct O <: MA.DD{Int,Real}
     f_e::Complex
 end == ProtoO

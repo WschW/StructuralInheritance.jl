@@ -222,7 +222,7 @@ function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
             if newParam in parameters[1]
                 y.args[2] = newParam
             else
-                y.args[2] = fulltypename(y,__module__)
+                y.args[2] = fulltypename(y.args[2],__module__,parameters[1])
             end
         end
         y
