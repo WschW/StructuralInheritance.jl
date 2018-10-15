@@ -4,6 +4,8 @@ using Test
 using StructuralInheritance
 ## TEST BASIC STRUCTURAL INHERITENCE ##
 
+SI = StructuralInheritance
+
   StructuralInheritance.@protostruct struct A
      f_a::Int
      f_b
@@ -178,3 +180,20 @@ end
 
 @test fieldnames(Q) == (:f1,:f2,:f3,:f4)
 @test fieldtype.(Q,[1,2,3,4]) == [Int,Array,Complex,Real]
+
+@test SI.totuple(4 + 5im) == (4,5)
+
+@protostruct struct R
+    ff::Int
+    sf
+    R(x) = new(x,x^2)
+    R(x,y) = new(x,y)
+end
+
+@protostruct struct S <: R
+    tf::Int
+end
+
+S(x) = S(SI.totuple(R(x))...,x^3)
+
+@test S(2) == S(2,4,8)

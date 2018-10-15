@@ -37,6 +37,15 @@ function filtertofields(_quote)
     filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),_quote.args)
 end
 
+isfunctiondefinition(x) = (x isa Expr) && (x.head == :(=) || x.head == :function)
+
+"""
+returns array with only the field constructors
+"""
+function extractconstructors(_quote)
+    filter(isfunctiondefinition,_quote.args[3].args)
+end
+
 """
 gets the name of a struct definition
 """
@@ -140,6 +149,16 @@ end
 
 getparameters(x) = isparametric(x) ? x.args[2:end] : []
 
+function getfieldnames(x)
+    f(x::Symbol) = x
+    f(x::Expr) = x.args[1]
+    f.(x)
+end
+
+function tupleexpander(x,fields)
+    x = deparametrize_lightName(x)
+    Expr(:tuple,((y)->:($x.$y)).(getfieldnames(fields))...)
+end
 
 
 function fieldsymbols(fields)
@@ -242,6 +261,12 @@ function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
     update.(newFields)
 end
 
+"""
+turns an object into a tuple of its fields
+"""
+function totuple(x) #low efficiency version structs not defined here
+    tuple([getfield(x,y) for y in fieldnames(typeof(x))]...)
+end
 
 """
 returns a renamed struct
@@ -304,16 +329,19 @@ macro protostruct(struct_,prefix_ = "Proto")
         sanitizedFields = sanitize(__module__,fields,parameters[1])
         prototypeDefinition = abstracttype(name)
         structDefinition = rename(struct_,newName)
-
+        SI = :StructuralInheritance
         if typeof(name) <: Symbol || name.head == :curly
             return esc(quote
                 $prototypeDefinition
                 $structDefinition
-                StructuralInheritance.register($__module__,
-                                               $(Meta.quot(newStructLightName)),
-                                               $(Meta.quot(lightname)),
-                                               $(Meta.quot(sanitizedFields)),
-                                               $(Meta.quot(parameters[1])))
+                function $SI.totuple(x::$(deparametrize_lightName(newStructLightName)))
+                    $(tupleexpander(:x,sanitizedFields))
+                end
+                $SI.register($__module__,
+                             $(Meta.quot(newStructLightName)),
+                             $(Meta.quot(lightname)),
+                             $(Meta.quot(sanitizedFields)),
+                             $(Meta.quot(parameters[1])))
             end)
 
         else #inheritence case
@@ -327,10 +355,15 @@ macro protostruct(struct_,prefix_ = "Proto")
                                          parentType,
                                          __module__)
             fields = vcat(oldFields,fields)
-            structDefinition = replacefields(structDefinition,fields)
+            constructors = extractconstructors(struct_)
+            structDefinition = replacefields(structDefinition,
+                                             vcat(fields,constructors))
             return esc(quote
                 $prototypeDefinition
                 $structDefinition
+                function $SI.totuple(x::$(deparametrize_lightName(newStructLightName)))
+                    $(tupleexpander(:x,fields))
+                end
                 StructuralInheritance.register($__module__,
                                                $(Meta.quot(newStructLightName)),
                                                $(Meta.quot(lightname)),

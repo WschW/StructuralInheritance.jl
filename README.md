@@ -62,6 +62,34 @@ julia> getFieldA(C(3,"ok","c's new field"))
 3
 ```
 
-![Eaxmple structural inheritence diagram](InheritenceExampleDiagram.png)
+![Example structural inheritance diagram](InheritanceExampleDiagram.png)
+
+##Note: on emulating super constructors
+```Julia
+julia> using StructuralInheritance
+
+julia> @protostruct struct R
+           ff::Int
+           sf
+           R(x) = new(x,x^2)
+           R(x,y) = new(x,y)
+       end
+ProtoR
+
+julia> @protostruct struct S <: R
+           tf::Int
+       end
+ProtoS
+```
+We can call the constructor in R and use its values to fill fields in S.
+```julia
+julia> S(x) = S(StructuralInheritance.totuple(R(x))...,x^3)
+S
+
+julia> S(2)
+S(2, 4, 8)
+```
+It is worth noting that this cannot be used with new() as new does not permit
+splatting.
 
 ## Note: inheriting from a specialized parametric struct is not currently supported
