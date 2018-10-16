@@ -64,7 +64,7 @@ julia> getFieldA(C(3,"ok","c's new field"))
 
 ![Example structural inheritance diagram](InheritanceExampleDiagram.png)
 
-##Note: on emulating super constructors
+## Note: on emulating super constructors
 ```Julia
 julia> using StructuralInheritance
 
