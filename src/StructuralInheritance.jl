@@ -129,6 +129,11 @@ isfunction(x::Expr) = x.head == :call
 ispath(x) = false
 ispath(x::Expr) = x.head == :.
 
+iscontainerlike(x) = false
+iscontainerlike(x::Expr) = (x.head in [:vect,:hcat,:row,
+                                       :vcat, :call,
+                                       :tuple,:curly])
+
 function getpath(x)
     oldpath = Symbol[]
     while ispath(x)
@@ -193,21 +198,15 @@ end
 """
 adds source module information to the type name
 """
-function fulltypename(x,__module__,inhibit = [])
+fulltypename(x,__module__,inhibit = []) = x #is a literal
+
+function fulltypename(x::Union{Expr,Symbol},__module__,inhibit = [])
     if x in inhibit
         return x
     end
-    if isparametric(x)  || isfunction(x)
+    if iscontainerlike(x)
         fullargs = [fulltypename(y,__module__,inhibit) for y in x.args]
         return Expr(x.head,fullargs...)
-    end
-
-    if typeof(x) <: Expr && (x.head in [:vect,:hcat,:row,:vcat])
-        return Expr(x.head,[fulltypename(y,__module__,inhibit) for y in x.args]...)
-    end
-
-    if !(typeof(x) <: Expr) && !(typeof(x) <: Symbol)
-        return x #must be a primitive
     end
 
     oldpath,x = getpath(x)
@@ -244,9 +243,18 @@ update parameters from old fields
 """
 function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
     newFields = deepcopy(oldFields)
-    update(x::Symbol) = x
-    function update(x)
+    update(x) = x
+    function update(x::Expr)
         y = deepcopy(x)
+        if isfunction(x) || isparametric(x)
+            fullargs = [update(z) for z in y.args]
+            y = Expr(y.head,fullargs...)
+        end
+
+        if iscontainerlike(x)
+            y  = Expr(y.head,[update(z) for z in y.args]...)
+        end
+
         if y.args[2] in oldParams
             loc = findfirst(y->(y==x.args[2]),oldParams)
             newParam = parameters[2][loc]

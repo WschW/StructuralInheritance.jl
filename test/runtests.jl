@@ -164,15 +164,15 @@ end) == ProtoDD_2
     f_e::Complex
 end) == ProtoO
 
-@test_broken @protostruct( mutable struct O_2 <: DD_2{Int,Real}
+@test @protostruct( mutable struct O_2 <: DD_2{Int,Real}
     f_e::Complex
-end) == ProtoO
+end) == ProtoO_2
 
 @test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
 @test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex,Int,Complex]
 
-#@test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
-#@test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex{Int},Int,Complex]
+@test fieldnames(O_2) == (:f_a,:f_b,:f_c,:f_d,:f_e)
+@test fieldtype.(O_2,[1,2,3,4,5]) == [Int,Real,Complex{Int},Int,Complex]
 
 module M_literal_func
     using Main.StructuralInheritance

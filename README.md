@@ -91,5 +91,3 @@ S(2, 4, 8)
 ```
 It is worth noting that this cannot be used with new() as new does not permit
 splatting.
-
-## Note: inheriting from a specialized parametric struct is not currently supported
