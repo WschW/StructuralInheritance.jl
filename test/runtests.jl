@@ -152,16 +152,27 @@ end
 end
 
 
-@test_broken @protostruct mutable struct DD{C,D} <: CC{D,Complex}
+@test @protostruct( mutable struct DD{C,D} <: CC{D,Complex}
     f_d::C
-end
+end) == ProtoDD
 
-@test_broken @protostruct mutable struct O <: MA.DD{Int,Real}
+@test @protostruct( mutable struct DD_2{C,D} <: CC{D,Complex{C}}
+    f_d::C
+end) == ProtoDD_2
+
+@test @protostruct( mutable struct O <: DD{Int,Real}
     f_e::Complex
-end == ProtoO
+end) == ProtoO
 
-#@test_broken @test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
-#@test_broken @test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex,Int,Complex]
+@test_broken @protostruct( mutable struct O_2 <: DD_2{Int,Real}
+    f_e::Complex
+end) == ProtoO
+
+@test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
+@test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex,Int,Complex]
+
+#@test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
+#@test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex{Int},Int,Complex]
 
 module M_literal_func
     using Main.StructuralInheritance
