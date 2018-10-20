@@ -11,17 +11,17 @@ pseudo structural inheritance for the Julia language
 ```Julia
 julia> using StructuralInheritance
 
-julia> @protostruct struct A
-         fieldFromA::Int
+julia> @protostruct struct A{T}
+           fieldFromA::T
        end
 ProtoA
 
-julia> @protostruct struct B <: A
-         fieldFromB
-       end
-ProtoB
+julia> @protostruct struct B{D} <: A{Complex{D}}
+          fieldFromB::D
+       end "SomeOtherPrefix"
+SomeOtherPrefixB
 
-julia> @protostruct struct C <: B
+julia> @protostruct struct C <: B{Int}
          fieldFromC
        end
 ProtoC
@@ -30,9 +30,7 @@ ProtoC
 If we take a look at C we can see it inherits structure.
 
 ```Julia
-help?> C
-search: C cp cd Cmd Char csc cot cos cmp cld cis cat Cint Core Cvoid csch cscd coth cotd cosh cosd cosc copy conj chop ceil cbrt Cuint Colon Clong Cchar const ccall catch ctime count cospi
-
+julia> @doc C
   No documentation found.
 
   Summary
@@ -43,14 +41,14 @@ search: C cp cd Cmd Char csc cot cos cmp cld cis cat Cint Core Cvoid csch cscd c
   Fields
   ≡≡≡≡≡≡≡≡
 
-  fieldFromA :: Int64
-  fieldFromB :: Any
+  fieldFromA :: Complex{Int64}
+  fieldFromB :: Int64
   fieldFromC :: Any
 
   Supertype Hierarchy
   ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 
-  C <: ProtoC <: ProtoB <: ProtoA <: Any
+  C <: ProtoC <: SomeOtherPrefixB{Int64} <: ProtoA{Complex{Int64}} <: Any
 ```
 functions can be written to take advantage of the inherited structure
 
@@ -58,8 +56,8 @@ functions can be written to take advantage of the inherited structure
 julia> getFieldA(x::ProtoA) = x.fieldFromA
 getFieldA (generic function with 1 method)
 
-julia> getFieldA(C(3,"ok","c's new field"))
-3
+julia> getFieldA(C(3 + im,2,"c's new field"))
+3 + 1im
 ```
 
 ![Example structural inheritance diagram](InheritanceExampleDiagram.png)
