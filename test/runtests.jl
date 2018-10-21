@@ -208,3 +208,21 @@ end
 S(x) = S(SI.totuple(R(x))...,x^3)
 
 @test S(2) == S(2,4,8)
+
+module mutabilityTestings
+    using Main.StructuralInheritance
+    using Test
+    @protostruct struct A_im; end;
+    @protostruct mutable struct A_m; end;
+    @test_throws Any @protostruct mutable struct B_m <: A_im; end;
+    @test_throws Any @protostruct struct B_im <: A_m; end;
+    @test_throws Any @protostruct mutable struct B_m <: A_im
+    end "Proto" "hat"
+
+    @test @protostruct(mutable struct B_m <: A_im end,
+                       "Sudo",
+                       true) == SudoB_m
+    @test @protostruct(struct B_im <: A_m; end,
+                       "A",
+                       true) == AB_im;
+end

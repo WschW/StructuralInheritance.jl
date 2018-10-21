@@ -12,6 +12,9 @@ const shadowMap = Dict{Type,Type}()
 #store parametric type information
 const parameterMap = Dict{Type,Vector{Any}}()
 
+#store parametric type information
+const mutabilityMap = Dict{Type,Bool}()
+
 
 """
 Creates an abstract type with the given name
@@ -300,7 +303,7 @@ end
 """
 registers a new struct and abstract type pair
 """
-function register(module_,newStructName,prototypeName,fields,parameters)
+function register(module_,newStructName,prototypeName,fields,parameters,mutability)
     nSName =  deparametrize_lightName(newStructName)
     pName = deparametrize_lightName(prototypeName)
 
@@ -310,20 +313,41 @@ function register(module_,newStructName,prototypeName,fields,parameters)
     fieldBacking[proto] = fields
     shadowMap[concrete] = proto
     parameterMap[proto] = parameters
+    mutabilityMap[proto] = mutability
     shadowMap[proto] = proto
 end
 
 """
 @protostruct(struct_ [, prefix_])
 
-creates a struct that can have structure inherited from it if also defined by
-@protostruct, creates an abstract type with a name given by the struct
-definitions name and a prefix. The concrete type inherits from the abstract
-type and anything which inherits the concrrete types structure also inherits
-from the abstract type.
+creates a struct that can have structure inherited from it and can inherit
+structure.
 
+additionally it creates an abstract type with a name given by the struct
+definitions name and a prefix. The concrete type inherits from the abstract
+type and anything which inherits the concrete types structure also inherits
+behavior from the abstract type.
+
+```Julia
+julia> using StructuralInheritance
+
+julia> @protostruct struct A{T}
+           fieldFromA::T
+       end
+ProtoA
+
+julia> @protostruct struct B{D} <: A{Complex{D}}
+          fieldFromB::D
+       end "SomeOtherPrefix"
+SomeOtherPrefixB
+
+julia> @protostruct struct C <: B{Int}
+         fieldFromC
+       end
+ProtoC
+```
 """
-macro protostruct(struct_,prefix_ = "Proto")
+macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
   #dump(struct_)
     try
         prefix = string(__module__.eval(prefix_))
@@ -331,6 +355,7 @@ macro protostruct(struct_,prefix_ = "Proto")
             throw("Prefix must have finite Length")
         end
 
+        mutability = struct_.args[1]
         newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
         parameters = get2parameters(struct_.args[2])
         fields = extractfields(struct_)
@@ -349,12 +374,24 @@ macro protostruct(struct_,prefix_ = "Proto")
                              $(Meta.quot(newStructLightName)),
                              $(Meta.quot(lightname)),
                              $(Meta.quot(sanitizedFields)),
-                             $(Meta.quot(parameters[1])))
+                             $(Meta.quot(parameters[1])),
+                             $mutability)
             end)
 
         else #inheritence case
             parentType = get(shadowMap,__module__.eval(deparametrize_lightName(name.args[2])),missing)
             oldFields = get(fieldBacking,parentType ,[])
+            oldMutability = get(mutabilityMap,parentType,nothing)
+
+            if oldMutability != nothing && oldMutability != mutability
+                if eval(mutablilityOverride) != true
+                    throw("$(oldMutability ? "im" : "")mutable object"*
+                    " inheriting from $(oldMutability ? "" : "im")mutable"*
+                    "if this is desired pass true as a third argument "*
+                    "to `@protostruct`")
+                end
+            end
+
             assertcollisionfree(fields,oldFields)
             fields = sanitize(__module__,fields,parameters[1])
             oldFields = updateParameters(oldFields,
@@ -376,7 +413,8 @@ macro protostruct(struct_,prefix_ = "Proto")
                                                $(Meta.quot(newStructLightName)),
                                                $(Meta.quot(lightname)),
                                                $(Meta.quot(fields)),
-                                               $(Meta.quot(parameters[1])))
+                                               $(Meta.quot(parameters[1])),
+                                               $mutability)
             end)
         end
 
