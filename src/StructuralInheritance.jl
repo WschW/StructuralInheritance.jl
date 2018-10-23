@@ -3,7 +3,7 @@ module StructuralInheritance
 export @protostruct
 
 #Stores prototype field definitions
-const fieldBacking = Dict{Union{Type,Missing},Vector{Any}}()
+const fieldBacking = Dict{Union{Type},Vector{Any}}()
 
 #prototype -> self
 #concrete -> prototype
@@ -12,7 +12,7 @@ const shadowMap = Dict{Type,Type}()
 #store parametric type information
 const parameterMap = Dict{Type,Vector{Any}}()
 
-#store parametric type information
+
 const mutabilityMap = Dict{Type,Bool}()
 
 
@@ -40,7 +40,8 @@ function filtertofields(_quote)
     filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),_quote.args)
 end
 
-isfunctiondefinition(x) = (x isa Expr) && (x.head == :(=) || x.head == :function)
+isfunctiondefinition(x) = false
+isfunctiondefinition(x::Expr) = (x.head == :(=) || x.head == :function)
 
 """
 returns array with only the field constructors
@@ -66,7 +67,7 @@ function newnames(structDefinition,module_,prefix)
     handle inheritence conversions
     """
     function rectify(x)
-        val = module_.eval(deparametrize_lightName(x))
+        val = module_.eval(deparametrize(x))
         if !(typeof(val) <: Type)
             throw("must inherit from a type")
         end
@@ -163,28 +164,19 @@ function getfieldnames(x)
     f.(x)
 end
 
+"""
+creates AST for expanding a struct into a tuple with the fields given
+"""
 function tupleexpander(x,fields)
-    x = deparametrize_lightName(x)
+    x = deparametrize(x)
     Expr(:tuple,((y)->:($x.$y)).(getfieldnames(fields))...)
-end
-
-
-function fieldsymbols(fields)
-    function symbol(x)
-        if typeof(x) <: Symbol
-            x
-        else
-            x.args[1]::Symbol
-        end
-    end
-    symbol.(fields)
 end
 
 """
 throws an error is the fields contain overlapping symbols
 """
 function assertcollisionfree(x,y)
-    if !isempty(intersect(Set(fieldsymbols(x)),Set(fieldsymbols(y))))
+    if !isempty(intersect(Set(getfieldnames(x)),Set(getfieldnames(y))))
         throw("Field defined in multiple locations")
     end
 end
@@ -275,7 +267,7 @@ end
 """
 turns an object into a tuple of its fields
 """
-function totuple(x) #low efficiency version structs not defined here
+function totuple(x) #low efficiency version
     tuple([getfield(x,y) for y in fieldnames(typeof(x))]...)
 end
 
@@ -292,20 +284,15 @@ end
 strips parameterization off of a name that does
 not include inheritence information
 """
-function deparametrize_lightName(name)
-    if typeof(name) <: Expr && name.head == :curly
-        name.args[1]
-    else
-        name
-    end
-end
+deparametrize(name) = name
+deparametrize(name::Expr) = name.head == :curly ? name.args[1] : name
 
 """
 registers a new struct and abstract type pair
 """
 function register(module_,newStructName,prototypeName,fields,parameters,mutability)
-    nSName =  deparametrize_lightName(newStructName)
-    pName = deparametrize_lightName(prototypeName)
+    nSName =  deparametrize(newStructName)
+    pName = deparametrize(prototypeName)
 
     concrete = module_.eval(nSName)
     proto = module_.eval(pName)
@@ -367,7 +354,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
             return esc(quote
                 $prototypeDefinition
                 $structDefinition
-                function $SI.totuple(x::$(deparametrize_lightName(newStructLightName)))
+                function $SI.totuple(x::$(deparametrize(newStructLightName)))
                     $(tupleexpander(:x,sanitizedFields))
                 end
                 $SI.register($__module__,
@@ -379,7 +366,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
             end)
 
         else #inheritence case
-            parentType = get(shadowMap,__module__.eval(deparametrize_lightName(name.args[2])),missing)
+            parentType = get(shadowMap,__module__.eval(deparametrize(name.args[2])),nothing)
             oldFields = get(fieldBacking,parentType ,[])
             oldMutability = get(mutabilityMap,parentType,nothing)
 
@@ -406,7 +393,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
             return esc(quote
                 $prototypeDefinition
                 $structDefinition
-                function $SI.totuple(x::$(deparametrize_lightName(newStructLightName)))
+                function $SI.totuple(x::$(deparametrize(newStructLightName)))
                     $(tupleexpander(:x,fields))
                 end
                 StructuralInheritance.register($__module__,
