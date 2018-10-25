@@ -136,7 +136,7 @@ ispath(x::Expr) = x.head == :.
 iscontainerlike(x) = false
 iscontainerlike(x::Expr) = (x.head in [:vect,:hcat,:row,
                                        :vcat, :call,
-                                       :tuple,:curly])
+                                       :tuple,:curly,:macrocall])
 
 function getpath(x)
     oldpath = Symbol[]

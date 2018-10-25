@@ -226,3 +226,28 @@ module mutabilityTestings
                        "A",
                        true) == AB_im;
 end
+
+
+
+module macroLiteral
+    using Main.StructuralInheritance
+    using Test
+    module Inner
+        using Main.StructuralInheritance
+
+        macro m(x)
+             x
+         end
+         @protostruct struct A
+             f::@m(Int)
+         end
+    end
+
+    @protostruct struct B <: Inner.A
+        f2::Inner.@m Float64
+    end
+
+    @test fieldnames(B) == (:f,:f2)
+    @test fieldtype.(B,[1,2]) == [Int,Float64] 
+
+end
