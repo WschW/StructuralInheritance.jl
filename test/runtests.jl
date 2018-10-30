@@ -248,6 +248,33 @@ module macroLiteral
     end
 
     @test fieldnames(B) == (:f,:f2)
-    @test fieldtype.(B,[1,2]) == [Int,Float64] 
+    @test fieldtype.(B,[1,2]) == [Int,Float64]
+
+end
+
+module ParametricTypeConstraints
+    using Test
+    using Main.StructuralInheritance
+
+    @protostruct struct A{T<:Number}
+        ffa::T
+    end
+
+    @test_throws Any A("hmm")
+
+    @test A(3).ffa == 3
+
+    @protostruct struct B{T<:Real,A<:Array} <: A{T}
+        ffb::A
+    end
+
+    @protostruct struct C{T,A,L} <: B{T,A}
+        ffc::L
+    end
+
+    @test_throws Any C(4+3im,[],"huh")
+    @test_throws Any C(2,4,"huh")
+
+    @test StructuralInheritance.totuple(C(1,[4],"huh")) == (1,[4],"huh")
 
 end

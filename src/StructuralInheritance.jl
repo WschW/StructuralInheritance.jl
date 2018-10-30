@@ -95,7 +95,7 @@ function newnames(structDefinition,module_,prefix)
             protoName = deepcopy(nameNode)
             protoName.args[1].args[1] = Symbol(prefix,nameNode.args[1].args[1])
             protoName.args[2] = inheritFrom
-            return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+            return (:( $(nameNode.args[1]) <: $(detypevar(protoName.args[1]))),
                     protoName,
                     nameNode.args[1],
                     protoName.args[1])
@@ -115,13 +115,26 @@ function newnames(structDefinition,module_,prefix)
     if isparametric(nameNode)
         protoName = deepcopy(nameNode)
         protoName.args[1] = Symbol(prefix,nameNode.args[1])
-        return (:( $(nameNode) <: $(protoName)),
+        return (:( $(nameNode) <: $(detypevar(protoName))),
                 protoName,
                 nameNode,
                 protoName)
     end
 
     throw("structure of strucure name not identified")
+end
+
+"""
+from Foo{A<:B}
+returns Foo{A}
+"""
+detypevar(x) = x
+function detypevar(x::Expr)
+    if x.head == :<:
+        detypevar(x.args[1])
+    else
+        Expr(x.head,detypevar.(x.args)...)
+    end
 end
 
 isparametric(x) = false
@@ -345,6 +358,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
         mutability = struct_.args[1]
         newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
         parameters = get2parameters(struct_.args[2])
+        parameters = (x->detypevar.(x)).(parameters)
         fields = extractfields(struct_)
         sanitizedFields = sanitize(__module__,fields,parameters[1])
         prototypeDefinition = abstracttype(name)
