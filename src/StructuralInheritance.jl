@@ -36,8 +36,21 @@ end
 """
 returns an array with only the field definitions
 """
-function filtertofields(_quote)
-    filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),_quote.args)
+function filtertofields(unfiltered)
+    filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),unfiltered)
+end
+
+"""
+flattens the scope of the fields
+"""
+flattenfields(x::LineNumberNode) = []
+flattenfields(x) = [x]
+function flattenfields(x::Expr)
+    if x.head == :block
+        vcat(flattenfields.(x.args)...)
+    else
+        [x]
+    end
 end
 
 isfunctiondefinition(x) = false
@@ -58,7 +71,7 @@ extractname(leaf) = leaf.args[2]
 """
 extracts the fields from a struct definition
 """
-extractfields(leaf) = filtertofields(leaf.args[3])
+extractfields(leaf) = filtertofields(flattenfields(leaf.args[3]))
 
 
 
@@ -140,8 +153,6 @@ end
 isparametric(x) = false
 isparametric(x::Expr) = x.head == :curly || any(isparametric,x.args)
 
-isfunction(x) = false
-isfunction(x::Expr) = x.head == :call
 
 ispath(x) = false
 ispath(x::Expr) = x.head == :.
@@ -250,31 +261,22 @@ end
 update parameters from old fields
 """
 function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
-    newFields = deepcopy(oldFields)
-    update(x) = x
-    function update(x::Expr)
-        y = deepcopy(x)
-        if isfunction(x) || isparametric(x)
-            fullargs = [update(z) for z in y.args]
-            y = Expr(y.head,fullargs...)
-        end
-
-        if iscontainerlike(x)
-            y  = Expr(y.head,[update(z) for z in y.args]...)
-        end
-
-        if y.args[2] in oldParams
-            loc = findfirst(y->(y==x.args[2]),oldParams)
+    function update(x)
+        if x in oldParams
+            loc = findfirst(y->(y==x),oldParams)
             newParam = parameters[2][loc]
             if newParam in parameters[1]
-                y.args[2] = newParam
+                return newParam
             else
-                y.args[2] = fulltypename(newParam,__module__,parameters[1])
+                return fulltypename(newParam,__module__,parameters[1])
             end
         end
-        y
+        x
     end
-    update.(newFields)
+    function update(x::Expr)
+        Expr(x.head,[update(z) for z in x.args]...)
+    end
+    update.(oldFields)
 end
 
 """
@@ -354,6 +356,8 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
         if length(prefix) == 0
             throw("Prefix must have finite Length")
         end
+
+        struct_ = macroexpand(__module__,struct_,recursive=true)
 
         mutability = struct_.args[1]
         newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)

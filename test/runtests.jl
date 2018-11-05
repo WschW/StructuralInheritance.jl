@@ -114,6 +114,17 @@ module M_paramfields
 
     @test fieldnames(C) == (:f_a,:f_b,:field_c)
     @test fieldtype.(C,[1,2,3]) == [Array{Float16,3},Complex{Float64},Array{Float32,4}]
+
+    @protostruct struct D{X,B}
+        f1::Array{X,B}
+    end
+
+    @protostruct struct E{T} <: D{Complex{T},2} end
+
+    @protostruct struct F <: E{Int} end
+
+    @test fieldnames(F) == (:f1,)
+    @test fieldtype(F,1) == Array{Complex{Int64},2}
 end
 
 
@@ -277,4 +288,38 @@ module ParametricTypeConstraints
 
     @test StructuralInheritance.totuple(C(1,[4],"huh")) == (1,[4],"huh")
 
+end
+
+module MacroFields
+    using Test
+    using Main.StructuralInheritance
+
+    macro e1()
+        esc(quote f1::Int; f2::X; end)
+    end
+
+    macro e2()
+        esc(quote f4::K; end)
+    end
+
+    macro e3()
+        esc(quote; f5::Int; f6::T; end)
+    end
+
+    @protostruct struct A{X}
+        @e1
+    end
+
+    @protostruct struct B{X,T,K} <: A{Array{X,T}}
+        @e2()
+    end
+
+    @protostruct struct C{T} <: B{Complex{T},2,T}
+        @e3
+    end
+
+    @protostruct struct D <: C{Float32} end
+
+    fieldnames(D) == (:f1,:f2,:f4,:f5,:f6)
+    fieldtype.(D,(1,2,3,4,5)) == (Int,Array{Complex{Float32},2},Float32,Int,Float32)
 end
