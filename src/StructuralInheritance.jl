@@ -2,18 +2,19 @@ module StructuralInheritance
 
 export @protostruct
 
+const FieldType = Union{Symbol,Expr}
+
 #Stores prototype field definitions
-const fieldBacking = Dict{Union{Type},Vector{Any}}()
+const fieldBacking = IdDict{Type, Vector{FieldType}}()
 
 #prototype -> self
 #concrete -> prototype
-const shadowMap = Dict{Type,Type}()
+const shadowMap = IdDict{Type,Type}()
 
 #store parametric type information
-const parameterMap = Dict{Type,Vector{Any}}()
+const parameterMap = IdDict{Type,Vector{FieldType}}()
 
-
-const mutabilityMap = Dict{Type,Bool}()
+const mutabilityMap = IdDict{Type,Bool}()
 
 
 """
@@ -37,19 +38,19 @@ end
 returns an array with only the field definitions
 """
 function filtertofields(unfiltered)
-    filter(x->typeof(x)==Symbol || (typeof(x) == Expr && x.head == :(::)),unfiltered)
+    filter(x->x isa Symbol || (x isa Expr && x.head == :(::)),unfiltered)
 end
 
 """
 flattens the scope of the fields
 """
-flattenfields(x::LineNumberNode) = []
-flattenfields(x) = [x]
+flattenfields(x::LineNumberNode) = FieldType[]
+flattenfields(x) = FieldType[x]
 function flattenfields(x::Expr)
     if x.head == :block
         vcat(flattenfields.(x.args)...)
     else
-        [x]
+        FieldType[x]
     end
 end
 
@@ -81,7 +82,7 @@ function newnames(structDefinition,module_,prefix)
     """
     function rectify(x)
         val = module_.eval(deparametrize(x))
-        if !(typeof(val) <: Type)
+        if !(val isa Type)
             throw("must inherit from a type")
         end
         if isabstracttype(val)
@@ -95,7 +96,7 @@ function newnames(structDefinition,module_,prefix)
 
     nameNode = structDefinition.args[2]
 
-    if typeof(nameNode) <: Symbol
+    if nameNode isa Symbol
         protoName = Symbol(prefix,nameNode)
         return (:($nameNode <: $protoName),protoName,nameNode,protoName)
     end
@@ -113,7 +114,7 @@ function newnames(structDefinition,module_,prefix)
                     nameNode.args[1],
                     protoName.args[1])
 
-        elseif typeof(nameNode.args[1]) <: Symbol
+        elseif nameNode.args[1] isa Symbol
             protoName = deepcopy(nameNode)
             protoName.args[1] = Symbol(prefix,nameNode.args[1])
             protoName.args[2] = inheritFrom
@@ -158,9 +159,9 @@ ispath(x) = false
 ispath(x::Expr) = x.head == :.
 
 iscontainerlike(x) = false
-iscontainerlike(x::Expr) = (x.head in [:vect,:hcat,:row,
+iscontainerlike(x::Expr) = (x.head in (:vect,:hcat,:row,
                                        :vcat, :call,
-                                       :tuple,:curly,:macrocall])
+                                       :tuple,:curly,:macrocall))
 
 function getpath(x)
     oldpath = Symbol[]
@@ -173,18 +174,18 @@ function getpath(x)
 end
 
 function get2parameters(x)
-    if typeof(x) <: Expr && x.head == :<:
+    if x isa Expr && x.head == :<:
         (getparameters(x.args[1]),getparameters(x.args[2]))
     else
-        (getparameters(x),[])
+        (getparameters(x),FieldType[])
     end
 end
 
-getparameters(x) = isparametric(x) ? x.args[2:end] : []
+getparameters(x) = isparametric(x) ? x.args[2:end] : FieldType[]
 
 function getfieldnames(x)
     f(x::Symbol) = x
-    f(x::Expr) = x.args[1]
+    f(x::Expr) = x.args[1]::Symbol
     f.(x)
 end
 
@@ -192,7 +193,6 @@ end
 creates AST for expanding a struct into a tuple with the fields given
 """
 function tupleexpander(x,fields)
-    x = deparametrize(x)
     Expr(:tuple,((y)->:($x.$y)).(getfieldnames(fields))...)
 end
 
@@ -200,7 +200,8 @@ end
 throws an error is the fields contain overlapping symbols
 """
 function assertcollisionfree(x,y)
-    if !isempty(intersect(Set(getfieldnames(x)),Set(getfieldnames(y))))
+    xf,yf = getfieldnames(x), getfieldnames(y)
+    if any(x->(x in xf),yf) #faster then sets for expected field counts
         throw("Field defined in multiple locations")
     end
 end
@@ -217,23 +218,23 @@ end
 """
 adds source module information to the type name
 """
-fulltypename(x,__module__,inhibit = []) = x #is a literal
+fulltypename(x,__module__,inhibit = FieldType[]) = x #is a literal
 
-function fulltypename(x::Union{Expr,Symbol},__module__,inhibit = [])
+function fulltypename(x::Union{Expr,Symbol},__module__,inhibit = FieldType[])
     if x in inhibit
         return x
     end
     if iscontainerlike(x)
-        fullargs = [fulltypename(y,__module__,inhibit) for y in x.args]
+        fullargs = (fulltypename(y,__module__,inhibit) for y in x.args)
         return Expr(x.head,fullargs...)
     end
 
     oldpath,x = getpath(x)
 
-    modulePath = append!(Any[fullname(__module__)...],oldpath)
+    modulePath = append!(Union{FieldType,QuoteNode}[fullname(__module__)...],oldpath)
     annotationPath = push!(modulePath,x)
     reverse!(annotationPath)
-    annotationPath[1:(end-1)] .= QuoteNode.(annotationPath[1:(end-1)])
+    @. annotationPath[1:(end-1)] = QuoteNode(annotationPath[1:(end-1)])
     while length(annotationPath) > 1
         first = pop!(annotationPath)
         second = pop!(annotationPath)
@@ -246,7 +247,6 @@ end
 annotates module information to unanotated typed fields
 """
 function sanitize(__module__,fields,inhibit)
-    fields = deepcopy(fields)
 
     addpathif(x::Symbol) = x
     function addpathif(x)
@@ -274,7 +274,7 @@ function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
         x
     end
     function update(x::Expr)
-        Expr(x.head,[update(z) for z in x.args]...)
+        Expr(x.head,(update(z) for z in x.args)...)
     end
     update.(oldFields)
 end
@@ -283,7 +283,7 @@ end
 turns an object into a tuple of its fields
 """
 function totuple(x) #low efficiency version
-    tuple([getfield(x,y) for y in fieldnames(typeof(x))]...)
+    tuple((getfield(x,y) for y in fieldnames(typeof(x)))...)
 end
 
 """
@@ -305,12 +305,7 @@ deparametrize(name::Expr) = name.head == :curly ? name.args[1] : name
 """
 registers a new struct and abstract type pair
 """
-function register(module_,newStructName,prototypeName,fields,parameters,mutability)
-    nSName =  deparametrize(newStructName)
-    pName = deparametrize(prototypeName)
-
-    concrete = module_.eval(nSName)
-    proto = module_.eval(pName)
+function register(concrete,proto,fields,parameters,mutability)
 
     fieldBacking[proto] = fields
     shadowMap[concrete] = proto
@@ -352,7 +347,8 @@ ProtoC
 macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
   #dump(struct_)
     try
-        prefix = string(__module__.eval(prefix_))
+        prefix = (prefix_ isa String) ? prefix_ : string(__module__.eval(prefix_))
+
         if length(prefix) == 0
             throw("Prefix must have finite Length")
         end
@@ -368,16 +364,15 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
         prototypeDefinition = abstracttype(name)
         structDefinition = rename(struct_,newName)
         SI = :StructuralInheritance
-        if typeof(name) <: Symbol || name.head == :curly
+        if name isa Symbol || name.head == :curly
             return esc(quote
                 $prototypeDefinition
                 $structDefinition
                 function $SI.totuple(x::$(deparametrize(newStructLightName)))
                     $(tupleexpander(:x,sanitizedFields))
                 end
-                $SI.register($__module__,
-                             $(Meta.quot(newStructLightName)),
-                             $(Meta.quot(lightname)),
+                $SI.register($(deparametrize(newStructLightName)),
+                             $(deparametrize(lightname)),
                              $(Meta.quot(sanitizedFields)),
                              $(Meta.quot(parameters[1])),
                              $mutability)
@@ -385,7 +380,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
 
         else #inheritence case
             parentType = get(shadowMap,__module__.eval(deparametrize(name.args[2])),nothing)
-            oldFields = get(fieldBacking,parentType ,[])
+            oldFields = get(fieldBacking,parentType ,FieldType[])
             oldMutability = get(mutabilityMap,parentType,nothing)
 
             if oldMutability != nothing && oldMutability != mutability
@@ -400,7 +395,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
             assertcollisionfree(fields,oldFields)
             fields = sanitize(__module__,fields,parameters[1])
             oldFields = updateParameters(oldFields,
-                                        get(parameterMap,parentType,[]),
+                                        get(parameterMap,parentType,FieldType[]),
                                          parameters,
                                          parentType,
                                          __module__)
@@ -414,9 +409,8 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
                 function $SI.totuple(x::$(deparametrize(newStructLightName)))
                     $(tupleexpander(:x,fields))
                 end
-                StructuralInheritance.register($__module__,
-                                               $(Meta.quot(newStructLightName)),
-                                               $(Meta.quot(lightname)),
+                StructuralInheritance.register($(deparametrize(newStructLightName)),
+                                               $(deparametrize(lightname)),
                                                $(Meta.quot(fields)),
                                                $(Meta.quot(parameters[1])),
                                                $mutability)
