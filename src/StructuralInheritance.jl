@@ -280,7 +280,7 @@ function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
 end
 
 """
-turns an object into a tuple of its fields
+Turns an object into a tuple of its fields.
 """
 function totuple(x) #low efficiency version
     tuple([getfield(x,y) for y in fieldnames(typeof(x))]...)
@@ -322,10 +322,10 @@ end
 """
 @protostruct(struct_ [, prefix_])
 
-creates a struct that can have structure inherited from it and can inherit
+Creates a struct that can have structure inherited from it and can inherit
 structure.
 
-additionally it creates an abstract type with a name given by the struct
+Additionally it creates an abstract type with a name given by the struct
 definitions name and a prefix. The concrete type inherits from the abstract
 type and anything which inherits the concrete types structure also inherits
 behavior from the abstract type.
