@@ -3,6 +3,7 @@ module StructuralInheritance
 export @protostruct
 
 const FieldType = Union{Symbol,Expr}
+const SymbolTuple = Tuple{Vararg{Symbol,N}} where {N}
 
 #Stores prototype field definitions
 const fieldBacking = IdDict{Type, Vector{FieldType}}()
@@ -46,9 +47,9 @@ flattens the scope of the fields
 """
 flattenfields(x::LineNumberNode) = FieldType[]
 flattenfields(x) = FieldType[x]
-function flattenfields(x::Expr)
+function flattenfields(x::Expr)::Vector{FieldType}
     if x.head == :block
-        vcat(flattenfields.(x.args)...)
+        vcat(FieldType[],flattenfields.(x.args)...)
     else
         FieldType[x]
     end
@@ -75,60 +76,55 @@ extracts the fields from a struct definition
 extractfields(leaf) = filtertofields(flattenfields(leaf.args[3]))
 
 
-
-function newnames(structDefinition,module_,prefix)
+function newnames(nameNode::Symbol,module_,prefix)
+    protoName = Symbol(prefix,nameNode)
+    return (:($nameNode <: $protoName),protoName,nameNode,protoName)
+end
+function newnames(nameNode,module_,prefix)
     """
     handle inheritence conversions
     """
-    function rectify(x)
-        val = module_.eval(deparametrize(x))
-        if !(val isa Type)
-            throw("must inherit from a type")
-        end
+    function rectify(@nospecialize(x))::FieldType
+        val = module_.eval(deparametrize(x))::Type
         if isabstracttype(val)
             x
         elseif haskey(shadowMap,val)
-            addparams(:($(shadowMap[val])),getparameters(x))
+            addparams(:($(qualifyname(shadowMap[val]))),getparameters(x))
         else
             throw("inheritence from concrete types is limited to those defined by @protostruct, $val not found")
         end
     end
 
-    nameNode = structDefinition.args[2]
-
-    if nameNode isa Symbol
-        protoName = Symbol(prefix,nameNode)
-        return (:($nameNode <: $protoName),protoName,nameNode,protoName)
-    end
-
     if nameNode.head == :<:
-        inheritFrom = rectify(deepcopy(nameNode.args[2]))
-        structHead = deepcopy(nameNode.args[1])
+        inheritFrom = rectify(nameNode.args[2])::Union{Type,FieldType}
+        structHead = deepcopy(nameNode.args[1])::FieldType
 
-        if isparametric(nameNode.args[1])
-            protoName = deepcopy(nameNode)
-            protoName.args[1].args[1] = Symbol(prefix,nameNode.args[1].args[1])
+        if isparametric(structHead)
+            protoName = nameNode
+            protoChild = protoName.args[1]::Expr
+            protoChild.args[1] = Symbol(prefix,structHead.args[1])
             protoName.args[2] = inheritFrom
-            return (:( $(nameNode.args[1]) <: $(detypevar(protoName.args[1]))),
+            return (:( $(structHead) <: $(detypevar(protoChild))),
                     protoName,
-                    nameNode.args[1],
-                    protoName.args[1])
+                    structHead,
+                    protoChild)
 
-        elseif nameNode.args[1] isa Symbol
+        elseif structHead isa Symbol
             protoName = deepcopy(nameNode)
-            protoName.args[1] = Symbol(prefix,nameNode.args[1])
+            lightProto = Symbol(prefix,structHead)
+            protoName.args[1]  = lightProto
             protoName.args[2] = inheritFrom
-            return (:( $(nameNode.args[1]) <: $(protoName.args[1])),
+            return (:( $(structHead) <: $(lightProto)),
                     protoName,
-                    nameNode.args[1],
-                    protoName.args[1])
+                    structHead,
+                    lightProto)
         end
     end
 
 
     if isparametric(nameNode)
         protoName = deepcopy(nameNode)
-        protoName.args[1] = Symbol(prefix,nameNode.args[1])
+        protoName.args[1] = Symbol(prefix,nameNode.args[1]::Symbol)
         return (:( $(nameNode) <: $(detypevar(protoName))),
                 protoName,
                 nameNode,
@@ -145,9 +141,9 @@ returns Foo{A}
 detypevar(x) = x
 function detypevar(x::Expr)
     if x.head == :<:
-        detypevar(x.args[1])
+        detypevar(x.args[1]::FieldType)
     else
-        Expr(x.head,detypevar.(x.args)...)
+        Expr(x.head,detypevar.(x.args)...)::Expr
     end
 end
 
@@ -166,8 +162,8 @@ iscontainerlike(x::Expr) = (x.head in (:vect,:hcat,:row,
 function getpath(x)
     oldpath = Symbol[]
     while ispath(x)
-        push!(oldpath,x.args[2].value)
-        x = x.args[1]
+        push!(oldpath,(x.args[2]::QuoteNode).value)
+        x = x.args[1]::FieldType
     end
     oldpath = push!(oldpath,x)
     oldpath[end:-1:2], oldpath[1]
@@ -175,13 +171,14 @@ end
 
 function get2parameters(x)
     if x isa Expr && x.head == :<:
-        (getparameters(x.args[1]),getparameters(x.args[2]))
+        (stablegetparameters(x.args[1]),getparameters(x.args[2]))
     else
-        (getparameters(x),FieldType[])
+        (stablegetparameters(x),Symbol[])
     end
 end
 
-getparameters(x) = isparametric(x) ? x.args[2:end] : FieldType[]
+getparameters(x)::Vector = isparametric(x) ? detypevar.(x.args[2:end]) : Symbol[]
+stablegetparameters(x)::Vector{Symbol} = isparametric(x) ? detypevar.(x.args[2:end]) : Symbol[]
 
 function getfieldnames(x)
     f(x::Symbol) = x
@@ -218,49 +215,66 @@ end
 """
 adds source module information to the type name
 """
-fulltypename(x,__module__,inhibit = FieldType[]) = x #is a literal
+fulltypename(x,modulePath,inhibit) = x #is a literal
 
-function fulltypename(x::Union{Expr,Symbol},__module__,inhibit = FieldType[])
+function fulltypename(x::Union{Expr,Symbol},modulePath,inhibit)
     if x in inhibit
         return x
     end
     if iscontainerlike(x)
-        fullargs = (fulltypename(y,__module__,inhibit) for y in x.args)
+        fullargs = (fulltypename(y,modulePath,inhibit) for y in x.args)
         return Expr(x.head,fullargs...)
     end
+    qualifyname(x,modulePath)
+end
 
+function qualifyname(@nospecialize(x::Type))
+    qualifyname(nameof(x),Symbol[fullname(parentmodule(x))...])
+end
+
+function qualifyname(x,modulePath)
     oldpath,x = getpath(x)
-
-    modulePath = append!(Union{FieldType,QuoteNode}[fullname(__module__)...],oldpath)
-    annotationPath = push!(modulePath,x)
-    reverse!(annotationPath)
-    @. annotationPath[1:(end-1)] = QuoteNode(annotationPath[1:(end-1)])
-    while length(annotationPath) > 1
-        first = pop!(annotationPath)
-        second = pop!(annotationPath)
-        push!(annotationPath,Expr(:.,first,second))
+    if length(modulePath) + length(oldpath) == 1
+        return Expr(:.,modulePath[1],QuoteNode(x))
     end
-    annotationPath[1]
+    isWrapped = length(modulePath) == 1
+    out = Expr(:.,modulePath[1],QuoteNode(isWrapped ? oldpath[1] : modulePath[2]))
+    for i = 2:length(modulePath)
+        out = Expr(:.,out,QuoteNode(modulePath[i]))
+    end
+    for i = (isWrapped + 1):length(oldpath)
+        out = Expr(:.,out,QuoteNode(oldpath[i]))
+    end
+    Expr(:.,out,QuoteNode(x))
+end
+function qualifyname(x::Symbol,modulePath)
+    if length(modulePath) == 1
+        return Expr(:.,modulePath[1],QuoteNode(x))
+    end
+    out = Expr(:.,modulePath[1],QuoteNode(modulePath[2]))
+    for i = 2:length(modulePath)
+        out = Expr(:.,out,QuoteNode(modulePath[i]))
+    end
+    Expr(:.,out,QuoteNode(x))
 end
 
 """
 annotates module information to unanotated typed fields
 """
-function sanitize(__module__,fields,inhibit)
-
+function sanitize(modulePath,fields,inhibit)
     addpathif(x::Symbol) = x
-    function addpathif(x)
-        x.args[2] = fulltypename(x.args[2],__module__,inhibit)
+    function addpathif(x::Expr)
+        x.args[2] = fulltypename(x.args[2],modulePath,inhibit)
         x
     end
 
-    (x->addpathif(x)).(fields)
+    broadcast!(x->addpathif(x),fields,fields)
 end
 
 """
 update parameters from old fields
 """
-function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
+function updateParameters(oldFields,oldParams,parameters,parentType,modulePath)
     function update(x)
         if x in oldParams
             loc = findfirst(y->(y==x),oldParams)
@@ -268,7 +282,7 @@ function updateParameters(oldFields,oldParams,parameters,parentType,__module__)
             if newParam in parameters[1]
                 return newParam
             else
-                return fulltypename(newParam,__module__,parameters[1])
+                return fulltypename(newParam,modulePath,parameters[1])
             end
         end
         x
@@ -314,6 +328,9 @@ function register(concrete,proto,fields,parameters,mutability)
     shadowMap[proto] = proto
 end
 
+inherits(x::Symbol) = false
+inherits(x::Expr) = x.head != :curly
+
 """
 @protostruct(struct_ [, prefix_])
 
@@ -347,34 +364,36 @@ ProtoC
 macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
   #dump(struct_)
     try
-        prefix = (prefix_ isa String) ? prefix_ : string(__module__.eval(prefix_))
+        prefix = (prefix_ isa Union{String,Symbol}) ? string(prefix_) : string(__module__.eval(prefix_))
 
         if length(prefix) == 0
             throw("Prefix must have finite Length")
         end
 
-        struct_ = macroexpand(__module__,struct_,recursive=true)
+        struct_ = macroexpand(__module__,struct_,recursive=true)::Expr
 
-        mutability = struct_.args[1]
-        newName,name,newStructLightName,lightname = newnames(struct_,__module__,prefix)
-        parameters = get2parameters(struct_.args[2])
-        parameters = (x->detypevar.(x)).(parameters)
+        mutability = struct_.args[1]::Bool
+        newName,name,newStructLightName,lightname = newnames(struct_.args[2]::FieldType,__module__,prefix)
+
+        newParameters,oldParameters = get2parameters(struct_.args[2]::FieldType)
+
         fields = extractfields(struct_)
-        sanitizedFields = sanitize(__module__,fields,parameters[1])
         prototypeDefinition = abstracttype(name)
         structDefinition = rename(struct_,newName)
-        SI = :StructuralInheritance
-        if name isa Symbol || name.head == :curly
+        SI = StructuralInheritance
+        modulePath = Symbol[fullname(__module__)...]
+        if !inherits(name)
+            sanitize(modulePath,fields,newParameters)
             return esc(quote
                 $prototypeDefinition
                 $structDefinition
                 function $SI.totuple(x::$(deparametrize(newStructLightName)))
-                    $(tupleexpander(:x,sanitizedFields))
+                    $(tupleexpander(:x,fields))
                 end
                 $SI.register($(deparametrize(newStructLightName)),
                              $(deparametrize(lightname)),
-                             $(Meta.quot(sanitizedFields)),
-                             $(Meta.quot(parameters[1])),
+                             $(Meta.quot(fields)),
+                             $(Meta.quot(newParameters)),
                              $mutability)
             end)
 
@@ -393,12 +412,12 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
             end
 
             assertcollisionfree(fields,oldFields)
-            fields = sanitize(__module__,fields,parameters[1])
+            fields = sanitize(modulePath,fields,newParameters)
             oldFields = updateParameters(oldFields,
                                         get(parameterMap,parentType,FieldType[]),
-                                         parameters,
+                                         (newParameters,oldParameters),
                                          parentType,
-                                         __module__)
+                                         modulePath)
             fields = vcat(oldFields,fields)
             constructors = extractconstructors(struct_)
             structDefinition = replacefields(structDefinition,
@@ -412,7 +431,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
                 StructuralInheritance.register($(deparametrize(newStructLightName)),
                                                $(deparametrize(lightname)),
                                                $(Meta.quot(fields)),
-                                               $(Meta.quot(parameters[1])),
+                                               $(Meta.quot(newParameters)),
                                                $mutability)
             end)
         end
