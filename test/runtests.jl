@@ -1,7 +1,7 @@
 using Test
 
 #NOTE: @testset will not work for testing this.
-using Main.StructuralInheritance
+using StructuralInheritance
 ## TEST BASIC STRUCTURAL INHERITENCE ##
 
 SI = StructuralInheritance
