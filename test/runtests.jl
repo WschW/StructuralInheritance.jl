@@ -204,6 +204,7 @@ end
 @test fieldtype.(Q,[1,2,3,4]) == [Int,Array,Complex,Real]
 
 @test SI.totuple(4 + 5im) == (4,5)
+@test SI.totuple(4) == (4,5)
 
 @protostruct struct R
     ff::Int

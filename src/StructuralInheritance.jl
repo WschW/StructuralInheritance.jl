@@ -45,8 +45,8 @@ end
 """
 flattens the scope of the fields
 """
-flattenfields(x::LineNumberNode) = FieldType[]
-flattenfields(x) = FieldType[x]
+flattenfields(x) = FieldType[]
+flattenfields(x::Symbol) = FieldType[x]
 function flattenfields(x::Expr)::Vector{FieldType}
     if x.head == :block
         vcat(FieldType[],flattenfields.(x.args)...)
@@ -166,7 +166,7 @@ function getpath(x)
         x = x.args[1]::FieldType
     end
     oldpath = push!(oldpath,x)
-    oldpath[end:-1:2], oldpath[1]
+    oldpath[2:end], oldpath[1]
 end
 
 function get2parameters(x)
@@ -232,17 +232,15 @@ function qualifyname(@nospecialize(x::Type))
     qualifyname(nameof(x),Symbol[fullname(parentmodule(x))...])
 end
 
-function qualifyname(x,modulePath)
+function qualifyname(x::Expr,modulePath)
     oldpath,x = getpath(x)
-    if length(modulePath) + length(oldpath) == 1
-        return Expr(:.,modulePath[1],QuoteNode(x))
-    end
+
     isWrapped = length(modulePath) == 1
     out = Expr(:.,modulePath[1],QuoteNode(isWrapped ? oldpath[1] : modulePath[2]))
-    for i = 2:length(modulePath)
+    for i = 3:length(modulePath)
         out = Expr(:.,out,QuoteNode(modulePath[i]))
     end
-    for i = (isWrapped + 1):length(oldpath)
+    for i = length(oldpath):-1:(isWrapped + 1)
         out = Expr(:.,out,QuoteNode(oldpath[i]))
     end
     Expr(:.,out,QuoteNode(x))
@@ -252,7 +250,7 @@ function qualifyname(x::Symbol,modulePath)
         return Expr(:.,modulePath[1],QuoteNode(x))
     end
     out = Expr(:.,modulePath[1],QuoteNode(modulePath[2]))
-    for i = 2:length(modulePath)
+    for i = 3:length(modulePath)
         out = Expr(:.,out,QuoteNode(modulePath[i]))
     end
     Expr(:.,out,QuoteNode(x))
@@ -261,21 +259,23 @@ end
 """
 annotates module information to unanotated typed fields
 """
-function sanitize(modulePath,fields,inhibit)
-    addpathif(x::Symbol) = x
-    function addpathif(x::Expr)
-        x.args[2] = fulltypename(x.args[2],modulePath,inhibit)
-        x
+function sanitize!(modulePath,fields,inhibit)
+    for i = eachindex(fields)
+        temp = fields[i]
+        if temp isa Expr
+            if temp.args[2] isa FieldType
+                temp.args[2] = fulltypename(temp.args[2]::FieldType,modulePath,inhibit)
+            end
+        end
     end
-
-    broadcast!(x->addpathif(x),fields,fields)
 end
 
 """
 update parameters from old fields
 """
 function updateParameters(oldFields,oldParams,parameters,parentType,modulePath)
-    function update(x)
+    update(x) = x
+    function update(x::Symbol)
         if x in oldParams
             loc = findfirst(y->(y==x),oldParams)
             newParam = parameters[2][loc]
@@ -297,7 +297,11 @@ end
 turns an object into a tuple of its fields
 """
 function totuple(x) #low efficiency version
-    tuple((getfield(x,y) for y in fieldnames(typeof(x)))...)
+    if fieldcount(typeof(x)) > 0
+        tuple((getfield(x,y) for y in fieldnames(typeof(x)))...)
+    else
+        (x,)
+    end
 end
 
 """
@@ -319,7 +323,7 @@ deparametrize(name::Expr) = name.head == :curly ? name.args[1] : name
 """
 registers a new struct and abstract type pair
 """
-function register(concrete,proto,fields,parameters,mutability)
+function register(@nospecialize(concrete),@nospecialize(proto),fields,parameters,mutability)
 
     fieldBacking[proto] = fields
     shadowMap[concrete] = proto
@@ -362,6 +366,10 @@ ProtoC
 ```
 """
 macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
+    protostruct(__module__,struct_,prefix_,mutablilityOverride)
+end
+
+function protostruct(__module__,struct_,prefix_,mutablilityOverride)
   #dump(struct_)
     try
         prefix = (prefix_ isa Union{String,Symbol}) ? string(prefix_) : string(__module__.eval(prefix_))
@@ -383,7 +391,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
         SI = StructuralInheritance
         modulePath = Symbol[fullname(__module__)...]
         if !inherits(name)
-            sanitize(modulePath,fields,newParameters)
+            sanitize!(modulePath,fields,newParameters)
             return esc(quote
                 $prototypeDefinition
                 $structDefinition
@@ -412,7 +420,7 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
             end
 
             assertcollisionfree(fields,oldFields)
-            fields = sanitize(modulePath,fields,newParameters)
+            sanitize!(modulePath,fields,newParameters)
             oldFields = updateParameters(oldFields,
                                         get(parameterMap,parentType,FieldType[]),
                                          (newParameters,oldParameters),
