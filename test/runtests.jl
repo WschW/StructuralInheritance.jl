@@ -1,7 +1,7 @@
 using Test
 
 #NOTE: @testset will not work for testing this.
-using StructuralInheritance
+using Main.StructuralInheritance
 ## TEST BASIC STRUCTURAL INHERITENCE ##
 
 SI = StructuralInheritance
@@ -204,7 +204,7 @@ end
 @test fieldtype.(Q,[1,2,3,4]) == [Int,Array,Complex,Real]
 
 @test SI.totuple(4 + 5im) == (4,5)
-@test SI.totuple(4) == (4,5)
+@test SI.totuple(4) == (4,)
 
 @protostruct struct R
     ff::Int
