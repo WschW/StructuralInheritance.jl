@@ -1,6 +1,6 @@
 module StructuralInheritance
 
-export @protostruct
+export @protostruct, totuple
 
 const FieldType = Union{Symbol,Expr}
 const SymbolTuple = Tuple{Vararg{Symbol,N}} where {N}
@@ -370,7 +370,6 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
 end
 
 function protostruct(__module__,struct_,prefix_,mutablilityOverride)
-  #dump(struct_)
     try
         prefix = (prefix_ isa Union{String,Symbol}) ? string(prefix_) : string(__module__.eval(prefix_))
 
@@ -392,19 +391,6 @@ function protostruct(__module__,struct_,prefix_,mutablilityOverride)
         modulePath = Symbol[fullname(__module__)...]
         if !inherits(name)
             sanitize!(modulePath,fields,newParameters)
-            return esc(quote
-                $prototypeDefinition
-                $structDefinition
-                function $SI.totuple(x::$(deparametrize(newStructLightName)))
-                    $(tupleexpander(:x,fields))
-                end
-                $SI.register($(deparametrize(newStructLightName)),
-                             $(deparametrize(lightname)),
-                             $(Meta.quot(fields)),
-                             $(Meta.quot(newParameters)),
-                             $mutability)
-            end)
-
         else #inheritence case
             parentType = get(shadowMap,__module__.eval(deparametrize(name.args[2])),nothing)
             oldFields = get(fieldBacking,parentType ,FieldType[])
@@ -413,9 +399,7 @@ function protostruct(__module__,struct_,prefix_,mutablilityOverride)
             if oldMutability != nothing && oldMutability != mutability
                 if eval(mutablilityOverride) != true
                     throw("$(oldMutability ? "im" : "")mutable object"*
-                    " inheriting from $(oldMutability ? "" : "im")mutable"*
-                    "if this is desired pass true as a third argument "*
-                    "to `@protostruct`")
+                    " inheriting from $(oldMutability ? "" : "im")mutable")
                 end
             end
 
@@ -430,19 +414,19 @@ function protostruct(__module__,struct_,prefix_,mutablilityOverride)
             constructors = extractconstructors(struct_)
             structDefinition = replacefields(structDefinition,
                                              vcat(fields,constructors))
-            return esc(quote
-                $prototypeDefinition
-                $structDefinition
-                function $SI.totuple(x::$(deparametrize(newStructLightName)))
-                    $(tupleexpander(:x,fields))
-                end
-                StructuralInheritance.register($(deparametrize(newStructLightName)),
-                                               $(deparametrize(lightname)),
-                                               $(Meta.quot(fields)),
-                                               $(Meta.quot(newParameters)),
-                                               $mutability)
-            end)
         end
+        return esc(quote
+            $prototypeDefinition
+            $structDefinition
+            function $SI.totuple(x::$(deparametrize(newStructLightName)))
+                $(tupleexpander(:x,fields))
+            end
+            $SI.register($(deparametrize(newStructLightName)),
+                         $(deparametrize(lightname)),
+                         $(Meta.quot(fields)),
+                         $(Meta.quot(newParameters)),
+                         $mutability)
+        end)
 
     catch e
         return :(throw($e))
