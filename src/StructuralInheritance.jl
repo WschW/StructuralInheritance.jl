@@ -65,10 +65,6 @@ function extractconstructors(_quote)
     filter(isfunctiondefinition,_quote.args[3].args)
 end
 
-"""
-gets the name of a struct definition
-"""
-extractname(leaf) = leaf.args[2]
 
 """
 extracts the fields from a struct definition
