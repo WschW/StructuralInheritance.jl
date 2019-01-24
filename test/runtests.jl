@@ -89,7 +89,7 @@ end,"ProtoType") == ProtoTypeI
 @test StructuralInheritance.@protostruct(struct J
     f_c::Float32
     f_d
-end,"ProtoType") == ProtoTypeJ
+end,:("ProtoType")) == ProtoTypeJ
 
 @test_throws Any StructuralInheritance.@protostruct(struct K
     f_c::Float32
@@ -324,3 +324,25 @@ module MacroFields
     fieldnames(D) == (:f1,:f2,:f4,:f5,:f6)
     fieldtype.(D,(1,2,3,4,5)) == (Int,Array{Complex{Float32},2},Float32,Int,Float32)
 end
+
+#whitebox tests
+@test SI.qualifyname(Int64) == :(Core.Int64)
+@test SI.inherits(:x) == false
+@test SI.inherits(:(x <: y)) == true
+@test SI.inherits(:(x{z} <: y)) == true
+@test SI.inherits(:(x{y})) == false
+
+@test SI.qualifyname(:Xib,[:c,:v,:l,:k]) == :(c.v.l.k.Xib)
+@test SI.qualifyname(:(M.P.Xib),[:c,:v,:l,:k]) == :(c.v.l.k.M.P.Xib)
+
+@test SI.detypevar(:x) == :x
+
+@test SI.iscontainerlike(:(x.v)) == false
+@test SI.iscontainerlike(4) == false
+
+@test SI.ispath(:x) == false
+@test SI.ispath(:(x.c)) == true
+
+
+@test SI.flattenfields("str") == SI.FieldType[]
+@test SI.flattenfields(:x) == SI.FieldType[:x]
