@@ -270,7 +270,6 @@ end
 update parameters from old fields
 """
 function updateParameters(oldFields,oldParams,parameters,parentType,modulePath)
-    update(x) = x
     function update(x::Symbol)
         if x in oldParams
             loc = findfirst(y->(y==x),oldParams)
@@ -284,9 +283,18 @@ function updateParameters(oldFields,oldParams,parameters,parentType,modulePath)
         x
     end
     function update(x::Expr)
-        Expr(x.head,(update(z) for z in x.args)...)
+        Expr(x.head,(z isa FieldType ? update(z) : z for z in x.args)...)
     end
-    update.(oldFields)
+    out = similar(oldFields)
+    for pos = eachindex(oldFields)
+        cur = oldFields[pos]
+        if cur isa FieldType
+            out[pos] = update(cur)
+        else
+            out[pos] = cur
+        end
+    end
+    return out
 end
 
 """
