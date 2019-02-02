@@ -8,6 +8,9 @@ const fieldBacking = IdDict{Type, Vector{FieldType}}()
 #concrete -> prototype
 const shadowMap = IdDict{Type,Type}()
 
+#concrete -> prototype
+const traitMap = IdDict{Type,Type}()
+
 #store parametric type information
 const parameterMap = IdDict{Type,Vector{FieldType}}()
 

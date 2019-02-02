@@ -32,7 +32,34 @@ macro protostruct(struct_,prefix_ = "Proto",mutablilityOverride = false)
     protostruct(__module__,struct_,prefix_,mutablilityOverride)
 end
 
-function protostruct(__module__,struct_,prefix_,mutablilityOverride)
+
+function addnewfields(__module__,name,fields,struct_,modulePath,mutability,newParameters,oldParameters,structDefinition,mutablilityOverride)
+    parentType = get(shadowMap,__module__.eval(deparametrize(name.args[2])),nothing)
+    oldFields = get(fieldBacking,parentType ,FieldType[])
+    oldMutability = get(mutabilityMap,parentType,nothing)
+
+    if oldMutability != nothing && oldMutability != mutability
+        if eval(mutablilityOverride) != true
+            throw("$(oldMutability ? "im" : "")mutable object" *
+            " inheriting from $(oldMutability ? "" : "im")mutable")
+        end
+    end
+
+    assertcollisionfree(fields,oldFields)
+
+    oldFields = updateParameters(oldFields,
+                                get(parameterMap,parentType,FieldType[]),
+                                 (newParameters,oldParameters),
+                                 parentType,
+                                 modulePath)
+    fields = vcat(oldFields,fields)
+    constructors = extractconstructors(struct_)
+    return replacefields(structDefinition,
+                         vcat(fields,constructors)),fields
+end
+
+
+function protostruct(__module__,struct_,prefix_,mutablilityOverride = false, traitclass = false)
     try
         prefix = (prefix_ isa Union{String,Symbol}) ? string(prefix_) : string(__module__.eval(prefix_))
 
@@ -52,32 +79,13 @@ function protostruct(__module__,struct_,prefix_,mutablilityOverride)
         structDefinition = rename(struct_,newName)
         SI = StructuralInheritance
         modulePath = Symbol[fullname(__module__)...]
-        if !inherits(name)
-            sanitize!(modulePath,fields,newParameters)
-        else #inheritence case
-            parentType = get(shadowMap,__module__.eval(deparametrize(name.args[2])),nothing)
-            oldFields = get(fieldBacking,parentType ,FieldType[])
-            oldMutability = get(mutabilityMap,parentType,nothing)
 
-            if oldMutability != nothing && oldMutability != mutability
-                if eval(mutablilityOverride) != true
-                    throw("$(oldMutability ? "im" : "")mutable object"*
-                    " inheriting from $(oldMutability ? "" : "im")mutable")
-                end
-            end
+        sanitize!(modulePath,fields,newParameters)
 
-            assertcollisionfree(fields,oldFields)
-            sanitize!(modulePath,fields,newParameters)
-            oldFields = updateParameters(oldFields,
-                                        get(parameterMap,parentType,FieldType[]),
-                                         (newParameters,oldParameters),
-                                         parentType,
-                                         modulePath)
-            fields = vcat(oldFields,fields)
-            constructors = extractconstructors(struct_)
-            structDefinition = replacefields(structDefinition,
-                                             vcat(fields,constructors))
+        if inherits(name)
+            structDefinition,fields = addnewfields(__module__,name,fields,struct_,modulePath,mutability,newParameters,oldParameters,structDefinition,mutablilityOverride)
         end
+
         return esc(quote
             $prototypeDefinition
             $structDefinition
