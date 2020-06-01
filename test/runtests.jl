@@ -81,15 +81,17 @@ end
 @test fieldnames(H) == (:f_a_MA,:f_a,:f_c)
 @test fieldtype.(H,[1,2,3]) == [Int,MA.A,A]
 
-@test StructuralInheritance.@protostruct(struct I <: A
+T = StructuralInheritance.@protostruct(struct I <: A
     f_c::Float32
     f_d
-end,"ProtoType") == ProtoTypeI
+end,"ProtoType")
+@test T == ProtoTypeI
 
-@test StructuralInheritance.@protostruct(struct J
+T = StructuralInheritance.@protostruct(struct J
     f_c::Float32
     f_d
-end,:("ProtoType")) == ProtoTypeJ
+end,:("ProtoType"))
+@test T == ProtoTypeJ
 
 @test_throws Any StructuralInheritance.@protostruct(struct K
     f_c::Float32
@@ -100,17 +102,20 @@ end,"") == ProtoTypeK
 module M_paramfields
     using Main.StructuralInheritance
     using Test
-    @test @protostruct(struct A
+    T = @protostruct(struct A
         f_a::Core.Main.Base.Array{Float16,3}
-    end) == ProtoA
+    end)
+    @test T == ProtoA
 
-    @test @protostruct(struct B <: A
+    T = @protostruct(struct B <: A
         f_b::Complex{Float64}
-    end) == ProtoB
+    end)
+    @test T == ProtoB
 
-    @test @protostruct(struct C <: B
+    T = @protostruct(struct C <: B
         field_c::Array{Float32,4}
-    end) == ProtoC
+    end)
+    @test T == ProtoC
 
     @test fieldnames(C) == (:f_a,:f_b,:field_c)
     @test fieldtype.(C,[1,2,3]) == [Array{Float16,3},Complex{Float64},Array{Float32,4}]
@@ -129,24 +134,27 @@ end
 
 
 
-@test StructuralInheritance.@protostruct(struct K{T}
+T = StructuralInheritance.@protostruct(struct K{T}
     f_a::T
-end) == ProtoK
+end)
+@test T == ProtoK
 
 @test fieldtype(K{Int},1) == Int
 @test fieldnames(K) == (:f_a,)
 
 
-@test @protostruct(struct L{T} <: K{T}
+T =  @protostruct(struct L{T} <: K{T}
     f_b::T
-end) == ProtoL
+end)
+@test T == ProtoL
 
 @test fieldnames(L) == (:f_a,:f_b)
 @test fieldtype.(L{Real},[1,2]) == [Real,Real]
 
-@test @protostruct(struct N{R} <: K{R}
+T = @protostruct(struct N{R} <: K{R}
     f_b::R
-end) == ProtoN
+end)
+@test T == ProtoN
 
 
 @test fieldnames(N) == (:f_a,:f_b)
@@ -163,21 +171,25 @@ end
 end
 
 
-@test @protostruct( mutable struct DD{C,D} <: CC{D,Complex}
+T = @protostruct( mutable struct DD{C,D} <: CC{D,Complex}
     f_d::C
-end) == ProtoDD
+end)
+@test T == ProtoDD
 
-@test @protostruct( mutable struct DD_2{C,D} <: CC{D,Complex{C}}
+T = @protostruct( mutable struct DD_2{C,D} <: CC{D,Complex{C}}
     f_d::C
-end) == ProtoDD_2
+end)
+@test T == ProtoDD_2
 
-@test @protostruct( mutable struct O <: DD{Int,Real}
+T = @protostruct( mutable struct O <: DD{Int,Real}
     f_e::Complex
-end) == ProtoO
+end)
+@test T == ProtoO
 
-@test @protostruct( mutable struct O_2 <: DD_2{Int,Real}
+T = @protostruct( mutable struct O_2 <: DD_2{Int,Real}
     f_e::Complex
-end) == ProtoO_2
+end)
+@test T == ProtoO_2
 
 @test fieldnames(O) == (:f_a,:f_b,:f_c,:f_d,:f_e)
 @test fieldtype.(O,[1,2,3,4,5]) == [Int,Real,Complex,Int,Complex]
@@ -231,12 +243,14 @@ module mutabilityTestings
     @test_throws Any @protostruct mutable struct B_m <: A_im
     end "Proto" "hat"
 
-    @test @protostruct(mutable struct B_m <: A_im end,
+    T = @protostruct(mutable struct B_m <: A_im end,
                        "Sudo",
-                       true) == SudoB_m
-    @test @protostruct(struct B_im <: A_m; end,
+                       true)
+    @test T == SudoB_m
+    T = @protostruct(struct B_im <: A_m; end,
                        "A",
-                       true) == AB_im;
+                       true)
+    @test T == AB_im;
 end
 
 
