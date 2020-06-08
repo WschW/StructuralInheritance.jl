@@ -1,7 +1,7 @@
 authors = ["Warren Schweigert"]
 name = "StructuralInheritance"
 uuid = "eb3e9d2b-04dc-54b3-9584-49775b812a39"
-version = "0.2.4"
+version = "0.2.5"
 license = "MIT"
 
 
